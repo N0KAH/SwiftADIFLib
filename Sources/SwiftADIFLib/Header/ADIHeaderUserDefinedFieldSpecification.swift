@@ -3,7 +3,7 @@
 ///
 /// A specification appears after the field name and a comma, enclosed in curly
 /// brackets.
-public enum UserDefinedFieldSpecification: Hashable, Sendable, CustomStringConvertible {
+public enum ADIHeaderUserDefinedFieldSpecification: Hashable, Sendable, CustomStringConvertible {
     /// A comma-delimited list of permitted values, each of data type `String`.
     ///
     /// For example `{S,M,L}`.

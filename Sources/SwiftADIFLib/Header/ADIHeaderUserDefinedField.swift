@@ -9,7 +9,7 @@
 /// - Note: In an ADI file the name declared here appears directly in
 ///   QSO-Data-Specifiers in place of a QSO field name, and is matched without
 ///   regard to case.
-public struct UserDefinedField: Hashable, Sendable, CustomStringConvertible {
+public struct ADIHeaderUserDefinedField: Hashable, Sendable, CustomStringConvertible {
     /// The one-based number of this user-defined field, which is the `n` in
     /// `USERDEFn`.
     public let position: Int
@@ -23,10 +23,10 @@ public struct UserDefinedField: Hashable, Sendable, CustomStringConvertible {
     /// The specification permits any data type except `Digit` and `Character`.
     /// Neither of those data types declares an indicator, so `nil` is the way
     /// to express them.
-    public let dataType: DataTypeIndicator?
+    public let dataType: ADIDataTypeIndicator?
 
     /// The enumeration or range that constrains the field's value, if any.
-    public let specification: UserDefinedFieldSpecification?
+    public let specification: ADIHeaderUserDefinedFieldSpecification?
 
     /// The header field name that declares this field, such as `USERDEF1`.
     public var headerFieldName: String {
@@ -61,8 +61,8 @@ public struct UserDefinedField: Hashable, Sendable, CustomStringConvertible {
     public init(
         position: Int,
         name: String,
-        dataType: DataTypeIndicator? = nil,
-        specification: UserDefinedFieldSpecification? = nil
+        dataType: ADIDataTypeIndicator? = nil,
+        specification: ADIHeaderUserDefinedFieldSpecification? = nil
     ) throws {
         guard position >= 1 else {
             throw ADIFError.invalidUserDefinedFieldPosition(position)
@@ -87,7 +87,7 @@ public struct UserDefinedField: Hashable, Sendable, CustomStringConvertible {
     ///     specifier itself.
     /// - Throws: ``ADIFError`` if `data` is malformed or names a field or
     ///   specification the specification does not permit.
-    public init(position: Int, parsing data: String, dataType: DataTypeIndicator?) throws {
+    public init(position: Int, parsing data: String, dataType: ADIDataTypeIndicator?) throws {
         let fieldName: String
         let rawSpecification: String?
 
@@ -107,7 +107,7 @@ public struct UserDefinedField: Hashable, Sendable, CustomStringConvertible {
         )
     }
 
-    private static func parseSpecification(_ raw: String) -> UserDefinedFieldSpecification? {
+    private static func parseSpecification(_ raw: String) -> ADIHeaderUserDefinedFieldSpecification? {
         guard
             raw.count >= 2,
             raw.hasPrefix("{"),

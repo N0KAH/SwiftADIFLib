@@ -10,7 +10,7 @@ enum ADITag: Hashable, Sendable {
     case endOfRecord
 
     /// A `<NAME:LENGTH[:TYPE]>DATA` tag.
-    case dataSpecifier(DataSpecifier)
+    case dataSpecifier(ADIDataSpecifier)
 
     /// The tag's name, uppercased.
     var name: String {
@@ -108,7 +108,7 @@ struct ADITagScanner {
         return try .dataSpecifier(parseDataSpecifier(body: body, tagStart: tagStart, bodyStart: bodyStart))
     }
 
-    private mutating func parseDataSpecifier(body: String, tagStart: Int, bodyStart: Int) throws -> DataSpecifier {
+    private mutating func parseDataSpecifier(body: String, tagStart: Int, bodyStart: Int) throws -> ADIDataSpecifier {
         guard let nameEnd = body.firstIndex(of: ":") else {
             // The tag body ran to '>' without a length, so this is not a
             // data specifier at all.
@@ -137,9 +137,9 @@ struct ADITagScanner {
         let length = try Self.parseLength(String(lengthText), offset: offset)
         let data = String(decoding: try readCharacters(length), as: UTF8.self)
 
-        return try DataSpecifier(
+        return try ADIDataSpecifier(
             name: name,
-            typeIndicator: indicatorText.flatMap(DataTypeIndicator.init(rawValue:)),
+            typeIndicator: indicatorText.flatMap(ADIDataTypeIndicator.init(rawValue:)),
             data: data
         )
     }

@@ -8,12 +8,12 @@
 /// - Note: Field names in ADI files are case independent, so ``name`` is
 ///   normalized to uppercase. This makes specifiers from files written by
 ///   different applications compare equal.
-public struct DataSpecifier: Hashable, Sendable {
+public struct ADIDataSpecifier: Hashable, Sendable {
     /// The name of the field that ``data`` belongs to, normalized to uppercase.
     public let name: String
 
     /// The ADIF data type of ``data``, when the specifier declares one.
-    public let typeIndicator: DataTypeIndicator?
+    public let typeIndicator: ADIDataTypeIndicator?
 
     /// The field's data.
     public let data: String
@@ -41,7 +41,7 @@ public struct DataSpecifier: Hashable, Sendable {
     ///   - data: The field's data.
     /// - Throws: ``ADIFError/invalidFieldName(name:reason:)`` if `name` is not
     ///   usable as a data specifier's field name.
-    public init(name: String, typeIndicator: DataTypeIndicator? = nil, data: String) throws {
+    public init(name: String, typeIndicator: ADIDataTypeIndicator? = nil, data: String) throws {
         try Self.validate(name: name)
         self.name = name.uppercased()
         self.typeIndicator = typeIndicator
@@ -49,7 +49,7 @@ public struct DataSpecifier: Hashable, Sendable {
     }
 
     /// Creates a specifier from an already validated, already normalized name.
-    private init(uncheckedName: String, typeIndicator: DataTypeIndicator?, data: String) {
+    private init(uncheckedName: String, typeIndicator: ADIDataTypeIndicator?, data: String) {
         name = uncheckedName
         self.typeIndicator = typeIndicator
         self.data = data
@@ -59,8 +59,8 @@ public struct DataSpecifier: Hashable, Sendable {
     ///
     /// - Parameter typeIndicator: The indicator to apply.
     /// - Returns: The updated specifier.
-    public func settingTypeIndicator(_ typeIndicator: DataTypeIndicator?) -> DataSpecifier {
-        DataSpecifier(uncheckedName: name, typeIndicator: typeIndicator, data: data)
+    public func settingTypeIndicator(_ typeIndicator: ADIDataTypeIndicator?) -> ADIDataSpecifier {
+        ADIDataSpecifier(uncheckedName: name, typeIndicator: typeIndicator, data: data)
     }
 
     /// Renders this specifier in ADI form.
@@ -80,7 +80,7 @@ public struct DataSpecifier: Hashable, Sendable {
     /// - Returns: This specifier, unchanged.
     /// - Throws: ``ADIFError/unsupportedDataType(dataType:reason:)`` if the
     ///   specifier's data type may only appear in an ADX file.
-    public func validatedForADI() throws -> DataSpecifier {
+    public func validatedForADI() throws -> ADIDataSpecifier {
         if let typeIndicator, !typeIndicator.isPermittedInADI {
             throw ADIFError.unsupportedDataType(
                 dataType: typeIndicator.description,

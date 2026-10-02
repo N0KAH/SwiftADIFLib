@@ -8,8 +8,8 @@ struct UserDefinedFieldTests {
     struct InitializerTests {
         @Test("builds a declaration with all of its parts")
         func buildsDeclaration() throws {
-            let specification = try UserDefinedFieldSpecification(enumeration: ["S", "M", "L"])
-            let field = try UserDefinedField(
+            let specification = try ADIHeaderUserDefinedFieldSpecification(enumeration: ["S", "M", "L"])
+            let field = try ADIHeaderUserDefinedField(
                 position: 2,
                 name: "SweaterSize",
                 dataType: .enumeration,
@@ -24,14 +24,14 @@ struct UserDefinedFieldTests {
 
         @Test("normalizes the field name to uppercase")
         func normalizesFieldName() throws {
-            let field = try UserDefinedField(position: 1, name: "epc")
+            let field = try ADIHeaderUserDefinedField(position: 1, name: "epc")
 
             #expect(field.name == "EPC")
         }
 
         @Test("has no data type when none is supplied")
         func hasNoDataTypeByDefault() throws {
-            let field = try UserDefinedField(position: 1, name: "EPC")
+            let field = try ADIHeaderUserDefinedField(position: 1, name: "EPC")
 
             #expect(field.dataType == nil)
         }
@@ -39,14 +39,14 @@ struct UserDefinedFieldTests {
         @Test("rejects a position below one", arguments: [0, -1])
         func rejectsPositionBelowOne(_ position: Int) {
             #expect(throws: ADIFError.invalidUserDefinedFieldPosition(position)) {
-                try UserDefinedField(position: position, name: "EPC")
+                try ADIHeaderUserDefinedField(position: position, name: "EPC")
             }
         }
 
         @Test("rejects an empty field name")
         func rejectsEmptyFieldName() {
             #expect(throws: ADIFError.invalidFieldName(name: "", reason: "it is empty")) {
-                try UserDefinedField(position: 1, name: "")
+                try ADIHeaderUserDefinedField(position: 1, name: "")
             }
         }
 
@@ -54,7 +54,7 @@ struct UserDefinedFieldTests {
         func rejectsSpecificationDefinedName() throws {
             for name in ["ADIF_VER", "adif_ver", "PROGRAMID", "created_timestamp"] {
                 #expect(throws: ADIFError.self) {
-                    try UserDefinedField(position: 1, name: name)
+                    try ADIHeaderUserDefinedField(position: 1, name: name)
                 }
             }
         }
@@ -72,7 +72,7 @@ struct UserDefinedFieldTests {
                 name: name,
                 reason: "it may not contain a comma, a colon, an angle bracket, or a curly brace"
             )) {
-                try UserDefinedField(position: 1, name: name)
+                try ADIHeaderUserDefinedField(position: 1, name: name)
             }
         }
 
@@ -82,17 +82,17 @@ struct UserDefinedFieldTests {
                 name: " EPC",
                 reason: "it may not begin or end with a space character"
             )) {
-                try UserDefinedField(position: 1, name: " EPC")
+                try ADIHeaderUserDefinedField(position: 1, name: " EPC")
             }
 
             #expect(throws: ADIFError.self) {
-                try UserDefinedField(position: 1, name: "EPC ")
+                try ADIHeaderUserDefinedField(position: 1, name: "EPC ")
             }
         }
 
         @Test("accepts a name with an interior space")
         func acceptsNameWithInteriorSpace() throws {
-            let field = try UserDefinedField(position: 1, name: "MY FIELD")
+            let field = try ADIHeaderUserDefinedField(position: 1, name: "MY FIELD")
 
             #expect(field.name == "MY FIELD")
         }
@@ -102,7 +102,7 @@ struct UserDefinedFieldTests {
     struct ParsingTests {
         @Test("parses a bare field name")
         func parsesBareFieldName() throws {
-            let field = try UserDefinedField(position: 1, parsing: "EPC", dataType: .number)
+            let field = try ADIHeaderUserDefinedField(position: 1, parsing: "EPC", dataType: .number)
 
             #expect(field.name == "EPC")
             #expect(field.dataType == .number)
@@ -111,7 +111,7 @@ struct UserDefinedFieldTests {
 
         @Test("parses an enumeration specification")
         func parsesEnumerationSpecification() throws {
-            let field = try UserDefinedField(position: 2, parsing: "SweaterSize,{S,M,L}", dataType: .enumeration)
+            let field = try ADIHeaderUserDefinedField(position: 2, parsing: "SweaterSize,{S,M,L}", dataType: .enumeration)
 
             #expect(field.name == "SWEATERSIZE")
             #expect(field.specification == .enumeration(values: ["S", "M", "L"]))
@@ -119,7 +119,7 @@ struct UserDefinedFieldTests {
 
         @Test("parses a range specification")
         func parsesRangeSpecification() throws {
-            let field = try UserDefinedField(position: 3, parsing: "ShoeSize,{5:20}", dataType: .number)
+            let field = try ADIHeaderUserDefinedField(position: 3, parsing: "ShoeSize,{5:20}", dataType: .number)
 
             #expect(field.name == "SHOESIZE")
             #expect(field.specification == .range(lowerBound: 5, upperBound: 20))
@@ -127,14 +127,14 @@ struct UserDefinedFieldTests {
 
         @Test("parses a fractional range specification")
         func parsesFractionalRange() throws {
-            let field = try UserDefinedField(position: 3, parsing: "Size,{1.5:2.5}", dataType: .number)
+            let field = try ADIHeaderUserDefinedField(position: 3, parsing: "Size,{1.5:2.5}", dataType: .number)
 
             #expect(field.specification == .range(lowerBound: 1.5, upperBound: 2.5))
         }
 
         @Test("preserves the data type indicator taken from the header specifier")
         func preservesDataTypeIndicator() throws {
-            let field = try UserDefinedField(position: 1, parsing: "EPC", dataType: nil)
+            let field = try ADIHeaderUserDefinedField(position: 1, parsing: "EPC", dataType: nil)
 
             #expect(field.dataType == nil)
         }
@@ -143,7 +143,7 @@ struct UserDefinedFieldTests {
         func rejectsMalformedSpecification() throws {
             // A specification that is neither a valid enumeration nor a valid
             // range is dropped rather than silently reinterpreted.
-            let field = try UserDefinedField(position: 1, parsing: "Bad,{20:5}", dataType: nil)
+            let field = try ADIHeaderUserDefinedField(position: 1, parsing: "Bad,{20:5}", dataType: nil)
 
             #expect(field.name == "BAD")
             #expect(field.specification == nil)
@@ -154,29 +154,29 @@ struct UserDefinedFieldTests {
     struct DescriptionTests {
         @Test("renders a bare field name")
         func rendersBareFieldName() throws {
-            let field = try UserDefinedField(position: 1, name: "EPC")
+            let field = try ADIHeaderUserDefinedField(position: 1, name: "EPC")
 
             #expect(field.description == "EPC")
         }
 
         @Test("renders a field name with its specification")
         func rendersFieldNameWithSpecification() throws {
-            let specification = try UserDefinedFieldSpecification(enumeration: ["S", "M", "L"])
-            let field = try UserDefinedField(position: 2, name: "SweaterSize", specification: specification)
+            let specification = try ADIHeaderUserDefinedFieldSpecification(enumeration: ["S", "M", "L"])
+            let field = try ADIHeaderUserDefinedField(position: 2, name: "SweaterSize", specification: specification)
 
             #expect(field.description == "SWEATERSIZE,{S,M,L}")
         }
 
         @Test("round trips through the parsing initializer")
         func roundTripsThroughParsing() throws {
-            let specification = try UserDefinedFieldSpecification(lowerBound: 5, upperBound: 20)
-            let field = try UserDefinedField(
+            let specification = try ADIHeaderUserDefinedFieldSpecification(lowerBound: 5, upperBound: 20)
+            let field = try ADIHeaderUserDefinedField(
                 position: 3,
                 name: "ShoeSize",
                 dataType: .number,
                 specification: specification
             )
-            let reparsed = try UserDefinedField(
+            let reparsed = try ADIHeaderUserDefinedField(
                 position: 3,
                 parsing: field.description,
                 dataType: .number
@@ -190,14 +190,14 @@ struct UserDefinedFieldTests {
     struct HeaderFieldNameTests {
         @Test("renders the USERDEFn name")
         func rendersUserDefName() throws {
-            let field = try UserDefinedField(position: 1, name: "EPC")
+            let field = try ADIHeaderUserDefinedField(position: 1, name: "EPC")
 
             #expect(field.headerFieldName == "USERDEF1")
         }
 
         @Test("renders multi-digit positions")
         func rendersMultiDigitPositions() throws {
-            let field = try UserDefinedField(position: 12, name: "EPC")
+            let field = try ADIHeaderUserDefinedField(position: 12, name: "EPC")
 
             #expect(field.headerFieldName == "USERDEF12")
         }

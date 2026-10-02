@@ -63,7 +63,7 @@ struct ADIUnknownFieldTests {
     struct SpecifierInitTests {
         @Test("adopts the specifier's name, type, and data")
         func adoptsSpecifier() throws {
-            let specifier = try DataSpecifier(
+            let specifier = try ADIDataSpecifier(
                 name: "VENDOR",
                 typeIndicator: .string,
                 data: "ACME"
@@ -77,7 +77,7 @@ struct ADIUnknownFieldTests {
 
         @Test("round trips through a specifier unchanged")
         func roundTripsThroughSpecifier() throws {
-            let specifier = try DataSpecifier(
+            let specifier = try ADIDataSpecifier(
                 name: "VENDOR",
                 typeIndicator: .enumeration,
                 data: "3"
@@ -102,15 +102,15 @@ struct ADIUnknownFieldTests {
         @Test(
             "renders the data specifier form",
             arguments: [
-                ("VENDOR", DataTypeIndicator?.none, "ACME", "<VENDOR:4>ACME"),
-                ("VENDOR", DataTypeIndicator?.none, "", "<VENDOR:0>"),
-                ("VENDOR", DataTypeIndicator.string, "ACME", "<VENDOR:4:S>ACME"),
-                ("VENDOR", DataTypeIndicator.number, "1.5", "<VENDOR:3:N>1.5"),
-                ("VENDOR", DataTypeIndicator.enumeration, "3", "<VENDOR:1:E>3"),
+                ("VENDOR", ADIDataTypeIndicator?.none, "ACME", "<VENDOR:4>ACME"),
+                ("VENDOR", ADIDataTypeIndicator?.none, "", "<VENDOR:0>"),
+                ("VENDOR", ADIDataTypeIndicator.string, "ACME", "<VENDOR:4:S>ACME"),
+                ("VENDOR", ADIDataTypeIndicator.number, "1.5", "<VENDOR:3:N>1.5"),
+                ("VENDOR", ADIDataTypeIndicator.enumeration, "3", "<VENDOR:1:E>3"),
             ]
         )
         func rendersSpecifierForm(
-            _ sample: (name: String, type: DataTypeIndicator?, data: String, expected: String)
+            _ sample: (name: String, type: ADIDataTypeIndicator?, data: String, expected: String)
         ) throws {
             let field = try ADIUnknownField(
                 name: sample.name,
@@ -157,7 +157,7 @@ struct ADIUnknownFieldTests {
     @Suite("validatedForADI()")
     struct ValidationTests {
         @Test("accepts data types an ADI file may carry", arguments: [
-            DataTypeIndicator.string,
+            ADIDataTypeIndicator.string,
             .enumeration,
             .number,
             .boolean,
@@ -166,7 +166,7 @@ struct ADIUnknownFieldTests {
             .multilineString,
             .location,
         ])
-        func acceptsADIPermittedTypes(type: DataTypeIndicator) throws {
+        func acceptsADIPermittedTypes(type: ADIDataTypeIndicator) throws {
             let field = try ADIUnknownField(name: "VENDOR", typeIndicator: type, data: "1")
 
             let validated = try field.validatedForADI()
@@ -176,10 +176,10 @@ struct ADIUnknownFieldTests {
         }
 
         @Test("rejects data types the specification reserves for ADX", arguments: [
-            DataTypeIndicator.intlString,
+            ADIDataTypeIndicator.intlString,
             .intlMultilineString,
         ])
-        func rejectsADXOnlyTypes(type: DataTypeIndicator) throws {
+        func rejectsADXOnlyTypes(type: ADIDataTypeIndicator) throws {
             let field = try ADIUnknownField(name: "VENDOR", typeIndicator: type, data: "x")
 
             #expect(throws: ADIFError.unsupportedDataType(
@@ -219,19 +219,19 @@ struct ADIUnknownFieldTests {
     @Suite("specification coverage")
     struct SpecificationCoverageTests {
         @Test("the specification defines exactly ten indicators", arguments: [
-            ("Boolean", DataTypeIndicator.boolean.description),
-            ("Number", DataTypeIndicator.number.description),
-            ("Date", DataTypeIndicator.date.description),
-            ("Time", DataTypeIndicator.time.description),
-            ("String", DataTypeIndicator.string.description),
-            ("IntlString", DataTypeIndicator.intlString.description),
-            ("MultilineString", DataTypeIndicator.multilineString.description),
-            ("IntlMultilineString", DataTypeIndicator.intlMultilineString.description),
-            ("Enumeration", DataTypeIndicator.enumeration.description),
-            ("Location", DataTypeIndicator.location.description),
+            ("Boolean", ADIDataTypeIndicator.boolean.description),
+            ("Number", ADIDataTypeIndicator.number.description),
+            ("Date", ADIDataTypeIndicator.date.description),
+            ("Time", ADIDataTypeIndicator.time.description),
+            ("String", ADIDataTypeIndicator.string.description),
+            ("IntlString", ADIDataTypeIndicator.intlString.description),
+            ("MultilineString", ADIDataTypeIndicator.multilineString.description),
+            ("IntlMultilineString", ADIDataTypeIndicator.intlMultilineString.description),
+            ("Enumeration", ADIDataTypeIndicator.enumeration.description),
+            ("Location", ADIDataTypeIndicator.location.description),
         ])
         func coversEveryDefinedIndicator(_ sample: (name: String, indicator: String)) {
-            #expect(DataTypeIndicator(rawValue: sample.indicator)?.description == sample.indicator)
+            #expect(ADIDataTypeIndicator(rawValue: sample.indicator)?.description == sample.indicator)
         }
     }
 
@@ -354,7 +354,7 @@ struct ADIUnknownFieldTests {
 
         @Test("a generated header never carries unknown fields")
         func generatedHeaderHasNoUnknownFields() throws {
-            let header = try ADIHeader(
+            let header = ADIHeader(
                 adifVersion: ADIFVersion.current,
                 programID: "XYZ"
             )

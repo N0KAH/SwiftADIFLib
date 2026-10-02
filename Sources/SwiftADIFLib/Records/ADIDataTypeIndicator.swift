@@ -7,7 +7,7 @@
 /// - Note: The normative source is the "Data Types" table in the ADIF
 ///   specification at <https://adif.org/adif>. Most data types have no
 ///   indicator at all and are conveyed only by the meaning of the field.
-public enum DataTypeIndicator: Hashable, Sendable, CustomStringConvertible {
+public enum ADIDataTypeIndicator: Hashable, Sendable, CustomStringConvertible {
     /// The `Boolean` data type, spelled `B`.
     ///
     /// Data is the single ASCII character `Y` or `N` (case insensitive) when

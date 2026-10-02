@@ -16,7 +16,7 @@ struct ADITagScannerTests {
                 return
             }
 
-            #expect(specifier == (try DataSpecifier(name: "CALL", data: "WN4AZY")))
+            #expect(specifier == (try ADIDataSpecifier(name: "CALL", data: "WN4AZY")))
         }
 
         @Test("parses a data specifier with a type indicator")
@@ -232,7 +232,7 @@ struct ADITagScannerTests {
     struct TagNameTests {
         @Test("reports the uppercased tag name")
         func reportsUppercasedName() throws {
-            let specifier = try DataSpecifier(name: "call", data: "WN4AZY")
+            let specifier = try ADIDataSpecifier(name: "call", data: "WN4AZY")
 
             #expect(ADITag.dataSpecifier(specifier).name == "CALL")
             #expect(ADITag.endOfHeader.name == "EOH")

@@ -2,12 +2,12 @@ import Testing
 
 @testable import SwiftADIFLib
 
-@Suite("DataTypeIndicator")
-struct DataTypeIndicatorTests {
+@Suite("ADIDataTypeIndicator")
+struct ADIDataTypeIndicatorTests {
     @Suite("init?(rawValue:)")
     struct ParsingTests {
         @Test(arguments: [
-            ("B", DataTypeIndicator.boolean),
+            ("B", ADIDataTypeIndicator.boolean),
             ("N", .number),
             ("D", .date),
             ("T", .time),
@@ -18,26 +18,26 @@ struct DataTypeIndicatorTests {
             ("E", .enumeration),
             ("L", .location),
         ])
-        func recognizesSpecificationIndicators(_ pair: (String, DataTypeIndicator)) throws {
-            #expect(DataTypeIndicator(rawValue: pair.0) == pair.1)
+        func recognizesSpecificationIndicators(_ pair: (String, ADIDataTypeIndicator)) throws {
+            #expect(ADIDataTypeIndicator(rawValue: pair.0) == pair.1)
         }
 
         @Test(arguments: ["B", "b", "n", "d", "t", "s", "i", "m", "g", "e", "l"])
         func isCaseInsensitive(_ raw: String) throws {
-            let indicator = try #require(DataTypeIndicator(rawValue: raw))
+            let indicator = try #require(ADIDataTypeIndicator(rawValue: raw))
 
-            #expect(indicator == DataTypeIndicator(rawValue: raw.uppercased()))
-            #expect(indicator == DataTypeIndicator(rawValue: raw.lowercased()))
+            #expect(indicator == ADIDataTypeIndicator(rawValue: raw.uppercased()))
+            #expect(indicator == ADIDataTypeIndicator(rawValue: raw.lowercased()))
         }
 
         @Test("rejects an empty indicator")
         func rejectsEmptyIndicator() {
-            #expect(DataTypeIndicator(rawValue: "") == nil)
+            #expect(ADIDataTypeIndicator(rawValue: "") == nil)
         }
 
         @Test("preserves an unrecognized indicator instead of discarding it")
         func preservesUnrecognizedIndicator() throws {
-            let indicator = try #require(DataTypeIndicator(rawValue: "q"))
+            let indicator = try #require(ADIDataTypeIndicator(rawValue: "q"))
 
             #expect(indicator == .unrecognized("Q"))
             #expect(indicator.description == "Q")
@@ -45,16 +45,16 @@ struct DataTypeIndicatorTests {
 
         @Test("normalizes an unrecognized indicator to uppercase")
         func normalizesUnrecognizedIndicator() throws {
-            let indicator = try #require(DataTypeIndicator(rawValue: "q"))
+            let indicator = try #require(ADIDataTypeIndicator(rawValue: "q"))
 
-            #expect(DataTypeIndicator(rawValue: "Q") == indicator)
+            #expect(ADIDataTypeIndicator(rawValue: "Q") == indicator)
         }
     }
 
     @Suite("description")
     struct DescriptionTests {
         @Test(arguments: [
-            (DataTypeIndicator.boolean, "B"),
+            (ADIDataTypeIndicator.boolean, "B"),
             (.number, "N"),
             (.date, "D"),
             (.time, "T"),
@@ -66,20 +66,20 @@ struct DataTypeIndicatorTests {
             (.location, "L"),
             (.unrecognized("Z"), "Z"),
         ])
-        func rendersCanonicalForm(_ pair: (DataTypeIndicator, String)) {
+        func rendersCanonicalForm(_ pair: (ADIDataTypeIndicator, String)) {
             #expect(pair.0.description == pair.1)
         }
 
         @Test("round trips through its textual form")
         func roundTripsThroughTextualForm() {
-            let indicators: [DataTypeIndicator] = [
+            let indicators: [ADIDataTypeIndicator] = [
                 .boolean, .number, .date, .time, .string,
                 .intlString, .multilineString, .intlMultilineString,
                 .enumeration, .location, .unrecognized("Z"),
             ]
 
             for indicator in indicators {
-                #expect(DataTypeIndicator(rawValue: indicator.description) == indicator)
+                #expect(ADIDataTypeIndicator(rawValue: indicator.description) == indicator)
             }
         }
     }
@@ -88,13 +88,13 @@ struct DataTypeIndicatorTests {
     struct PermittedInADITests {
         @Test("international data types are not permitted in ADI files")
         func internationalDataTypesAreNotPermitted() {
-            #expect(DataTypeIndicator.intlString.isPermittedInADI == false)
-            #expect(DataTypeIndicator.intlMultilineString.isPermittedInADI == false)
+            #expect(ADIDataTypeIndicator.intlString.isPermittedInADI == false)
+            #expect(ADIDataTypeIndicator.intlMultilineString.isPermittedInADI == false)
         }
 
         @Test("every other data type is permitted in ADI files")
         func otherDataTypesArePermitted() {
-            let permitted: [DataTypeIndicator] = [
+            let permitted: [ADIDataTypeIndicator] = [
                 .boolean, .number, .date, .time, .string,
                 .multilineString, .enumeration, .location, .unrecognized("Z"),
             ]

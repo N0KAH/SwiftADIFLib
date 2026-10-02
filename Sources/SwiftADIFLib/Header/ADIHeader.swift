@@ -29,7 +29,7 @@ public struct ADIHeader: Hashable, Sendable {
     ///
     /// The array is not required to be sorted; ``serialized()`` writes the
     /// declarations in ascending ``UserDefinedField/position`` order.
-    public var userDefinedFields: [UserDefinedField]
+    public var userDefinedFields: [ADIHeaderUserDefinedField]
 
     /// Header data specifiers whose field names this library does not
     /// recognize.
@@ -62,7 +62,7 @@ public struct ADIHeader: Hashable, Sendable {
         createdTimestamp: ADIHeaderTimestamp? = nil,
         programID: String? = nil,
         programVersion: String? = nil,
-        userDefinedFields: [UserDefinedField] = []
+        userDefinedFields: [ADIHeaderUserDefinedField] = []
     ) {
         self.init(
             text: text,
@@ -99,7 +99,7 @@ public struct ADIHeader: Hashable, Sendable {
         createdTimestamp: ADIHeaderTimestamp? = nil,
         programID: String? = nil,
         programVersion: String? = nil,
-        userDefinedFields: [UserDefinedField] = [],
+        userDefinedFields: [ADIHeaderUserDefinedField] = [],
         unknownFields: [ADIUnknownField]
     ) {
         self.text = text
@@ -159,7 +159,7 @@ public struct ADIHeader: Hashable, Sendable {
         programVersion: String,
         createdAt: ADIHeaderTimestamp = .now,
         text: String = "",
-        userDefinedFields: [UserDefinedField] = []
+        userDefinedFields: [ADIHeaderUserDefinedField] = []
     ) -> ADIHeader {
         ADIHeader(
             text: text,
@@ -197,7 +197,7 @@ public struct ADIHeader: Hashable, Sendable {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    private mutating func apply(_ specifier: DataSpecifier) throws {
+    private mutating func apply(_ specifier: ADIDataSpecifier) throws {
         let name = specifier.name
 
         if name == ADIFieldName.adifVersion {
@@ -233,7 +233,7 @@ public struct ADIHeader: Hashable, Sendable {
         }
 
         if let position = ADIFieldName.userDefinedNumber(name) {
-            let field = try UserDefinedField(
+            let field = try ADIHeaderUserDefinedField(
                 position: position,
                 parsing: specifier.data,
                 dataType: specifier.typeIndicator
@@ -246,23 +246,23 @@ public struct ADIHeader: Hashable, Sendable {
         unknownFields.append(ADIUnknownField(specifier))
     }
 
-    private func dataSpecifiers() throws -> [DataSpecifier] {
-        var specifiers: [DataSpecifier] = []
+    private func dataSpecifiers() throws -> [ADIDataSpecifier] {
+        var specifiers: [ADIDataSpecifier] = []
 
         if let adifVersion {
-            specifiers.append(try DataSpecifier(name: ADIFieldName.adifVersion, data: adifVersion.description))
+            specifiers.append(try ADIDataSpecifier(name: ADIFieldName.adifVersion, data: adifVersion.description))
         }
 
         if let createdTimestamp {
-            specifiers.append(try DataSpecifier(name: ADIFieldName.createdTimestamp, data: createdTimestamp.description))
+            specifiers.append(try ADIDataSpecifier(name: ADIFieldName.createdTimestamp, data: createdTimestamp.description))
         }
 
         if let programID {
-            specifiers.append(try DataSpecifier(name: ADIFieldName.programID, data: programID))
+            specifiers.append(try ADIDataSpecifier(name: ADIFieldName.programID, data: programID))
         }
 
         if let programVersion {
-            specifiers.append(try DataSpecifier(name: ADIFieldName.programVersion, data: programVersion))
+            specifiers.append(try ADIDataSpecifier(name: ADIFieldName.programVersion, data: programVersion))
         }
 
         var seenPositions: Set<Int> = []
@@ -272,7 +272,7 @@ public struct ADIHeader: Hashable, Sendable {
             }
 
             specifiers.append(
-                try DataSpecifier(
+                try ADIDataSpecifier(
                     name: field.headerFieldName,
                     typeIndicator: field.dataType,
                     data: field.description

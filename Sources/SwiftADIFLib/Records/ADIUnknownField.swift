@@ -23,7 +23,7 @@ public struct ADIUnknownField: Hashable, Sendable {
     public var name: String
 
     /// The data type the file declared for the field's data, if any.
-    public var typeIndicator: DataTypeIndicator?
+    public var typeIndicator: ADIDataTypeIndicator?
 
     /// The field's data.
     public var data: String
@@ -44,14 +44,14 @@ public struct ADIUnknownField: Hashable, Sendable {
     ///   - data: The field's data.
     /// - Throws: ``ADIFError/invalidFieldName(name:reason:)`` if `name` is not
     ///   usable as a field name.
-    public init(name: String, typeIndicator: DataTypeIndicator? = nil, data: String) throws {
-        self.init(try DataSpecifier(name: name, typeIndicator: typeIndicator, data: data))
+    public init(name: String, typeIndicator: ADIDataTypeIndicator? = nil, data: String) throws {
+        self.init(try ADIDataSpecifier(name: name, typeIndicator: typeIndicator, data: data))
     }
 
     /// Creates an unknown field from a data specifier read from a file.
     ///
     /// - Parameter specifier: The data specifier as it appeared in the file.
-    public init(_ specifier: DataSpecifier) {
+    public init(_ specifier: ADIDataSpecifier) {
         name = specifier.name
         typeIndicator = specifier.typeIndicator
         data = specifier.data
@@ -76,8 +76,8 @@ public struct ADIUnknownField: Hashable, Sendable {
     /// - Returns: The equivalent ``DataSpecifier``.
     /// - Throws: ``ADIFError/invalidFieldName(name:reason:)`` if the field's
     ///   name is not usable.
-    public func dataSpecifier() throws -> DataSpecifier {
-        try DataSpecifier(name: name, typeIndicator: typeIndicator, data: data)
+    public func dataSpecifier() throws -> ADIDataSpecifier {
+        try ADIDataSpecifier(name: name, typeIndicator: typeIndicator, data: data)
     }
 
     /// Converts the field to a data specifier, checking that it may appear in
@@ -86,7 +86,7 @@ public struct ADIUnknownField: Hashable, Sendable {
     /// - Returns: The equivalent ``DataSpecifier``.
     /// - Throws: ``ADIFError/unsupportedDataType(dataType:reason:)`` if the
     ///   field's data type may only appear in an ADX file.
-    public func validatedForADI() throws -> DataSpecifier {
+    public func validatedForADI() throws -> ADIDataSpecifier {
         try dataSpecifier().validatedForADI()
     }
 }

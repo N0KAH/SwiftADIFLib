@@ -51,8 +51,8 @@ struct ADIHeaderTests {
 
         @Test("writes user-defined field declarations in ascending order")
         func writesUserDefinedFieldsInAscendingOrder() throws {
-            let third = try UserDefinedField(position: 3, name: "ShoeSize", dataType: .number)
-            let first = try UserDefinedField(position: 1, name: "EPC", dataType: .number)
+            let third = try ADIHeaderUserDefinedField(position: 3, name: "ShoeSize", dataType: .number)
+            let first = try ADIHeaderUserDefinedField(position: 1, name: "EPC", dataType: .number)
             let header = ADIHeader(userDefinedFields: [third, first])
 
             // The declared name is normalized to uppercase, and the length
@@ -67,8 +67,8 @@ struct ADIHeaderTests {
 
         @Test("writes a user-defined field with an enumeration")
         func writesUserDefinedFieldWithEnumeration() throws {
-            let specification = try UserDefinedFieldSpecification(enumeration: ["S", "M", "L"])
-            let field = try UserDefinedField(
+            let specification = try ADIHeaderUserDefinedFieldSpecification(enumeration: ["S", "M", "L"])
+            let field = try ADIHeaderUserDefinedField(
                 position: 2,
                 name: "SweaterSize",
                 dataType: .enumeration,
@@ -114,8 +114,8 @@ struct ADIHeaderTests {
 
         @Test("rejects two user-defined fields claiming the same position")
         func rejectsDuplicatePositions() throws {
-            let first = try UserDefinedField(position: 1, name: "ONE")
-            let second = try UserDefinedField(position: 1, name: "TWO")
+            let first = try ADIHeaderUserDefinedField(position: 1, name: "ONE")
+            let second = try ADIHeaderUserDefinedField(position: 1, name: "TWO")
             let header = ADIHeader(userDefinedFields: [first, second])
 
             #expect(throws: ADIFError.duplicateUserDefinedFieldPosition(1)) {
@@ -422,7 +422,7 @@ struct ADIHeaderTests {
                 programVersion: "0.1.0",
                 createdAt: timestamp,
                 text: "a note",
-                userDefinedFields: [try UserDefinedField(position: 1, name: "EPC", dataType: .number)]
+                userDefinedFields: [try ADIHeaderUserDefinedField(position: 1, name: "EPC", dataType: .number)]
             )
             let reparsed = try ADIHeader(parsing: header.serialized())
 
