@@ -231,17 +231,16 @@ struct ADIHeaderTimestampTests {
         }
     }
 
-    @Suite("isLeapYear(_:)")
-    struct LeapYearTests {
-        @Test("follows the Gregorian rule", arguments: [
-            (2024, true),
-            (2023, false),
-            (1900, false),
-            (2000, true),
-            (2100, false),
+    @Suite("leap day handling")
+    struct LeapDayTests {
+        @Test("accepts February 29 only in a leap year", arguments: [
+            ("20240229", true),
+            ("19000229", false),
+            ("20000229", true),
+            ("21000229", false),
         ])
-        func followsGregorianRule(_ pair: (year: Int, isLeap: Bool)) {
-            #expect(ADIHeaderTimestamp.isLeapYear(pair.year) == pair.isLeap)
+        func acceptsLeapDayOnlyInLeapYear(_ pair: (text: String, isValid: Bool)) {
+            #expect((ADIHeaderTimestamp(parsing: pair.text + " 120000") != nil) == pair.isValid)
         }
     }
 }

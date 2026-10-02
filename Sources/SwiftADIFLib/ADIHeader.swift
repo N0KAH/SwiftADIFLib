@@ -41,7 +41,7 @@ public struct ADIHeader: Hashable, Sendable {
     /// Preserving unrecognized fields means that parsing and re-serializing a
     /// file written by a newer version of the specification, or by a
     /// non-standard tool, does not silently discard data.
-    public var unknownFields: [DataSpecifier]
+    public var unknownFields: [ADIUnknownField]
 
     /// Creates a header.
     ///
@@ -100,7 +100,7 @@ public struct ADIHeader: Hashable, Sendable {
         programID: String? = nil,
         programVersion: String? = nil,
         userDefinedFields: [UserDefinedField] = [],
-        unknownFields: [DataSpecifier]
+        unknownFields: [ADIUnknownField]
     ) {
         self.text = text
         self.adifVersion = adifVersion
@@ -243,7 +243,7 @@ public struct ADIHeader: Hashable, Sendable {
             return
         }
 
-        unknownFields.append(specifier)
+        unknownFields.append(ADIUnknownField(specifier))
     }
 
     private func dataSpecifiers() throws -> [DataSpecifier] {

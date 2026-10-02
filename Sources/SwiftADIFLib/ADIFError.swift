@@ -97,6 +97,25 @@ public enum ADIFError: Error, Hashable, Sendable, CustomStringConvertible {
     ///   - reason: Why the data type is not permitted.
     case unsupportedDataType(dataType: String, reason: String)
 
+    /// A value did not have the form required by the ADIF `Date` data type.
+    ///
+    /// - Parameter found: The text that was found in place of a date.
+    case invalidDate(found: String)
+
+    /// A value did not have the form required by the ADIF `Time` data type.
+    ///
+    /// - Parameter found: The text that was found in place of a time.
+    case invalidTime(found: String)
+
+    /// A field's data did not satisfy the restriction the specification places
+    /// on that field.
+    ///
+    /// - Parameters:
+    ///   - name: The name of the offending field.
+    ///   - found: The data that was supplied.
+    ///   - reason: Why the data was rejected.
+    case invalidFieldValue(name: String, found: String, reason: String)
+
     /// A description of the error.
     public var description: String {
         switch self {
@@ -132,6 +151,12 @@ public enum ADIFError: Error, Hashable, Sendable, CustomStringConvertible {
             "User-defined field specification \"\(specification)\" is invalid: \(reason)."
         case let .unsupportedDataType(dataType, reason):
             "Data type \(dataType) cannot be used here: \(reason)."
+        case let .invalidDate(found):
+            "Expected a date of the form YYYYMMDD but found \"\(found)\"."
+        case let .invalidTime(found):
+            "Expected a time of the form HHMM or HHMMSS but found \"\(found)\"."
+        case let .invalidFieldValue(name, found, reason):
+            "Field \"\(name)\" has the invalid value \"\(found)\": \(reason)."
         }
     }
 }

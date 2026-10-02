@@ -28,12 +28,7 @@ public struct DataSpecifier: Hashable, Sendable {
     ///   byte count for all conforming input and degrades more predictably for
     ///   the non-ASCII characters that real-world files occasionally contain.
     public var length: Int {
-        data.utf8.reduce(into: 0) { count, byte in
-            // Skip UTF-8 continuation bytes so that each character counts once.
-            if byte & 0xC0 != 0x80 {
-                count += 1
-            }
-        }
+        ADICalendar.characterCount(of: data)
     }
 
     /// Creates a data specifier.

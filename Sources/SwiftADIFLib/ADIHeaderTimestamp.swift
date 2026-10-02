@@ -3,12 +3,15 @@ import Foundation
 /// A UTC date and time in the exact form used by the ADIF `CREATED_TIMESTAMP`
 /// header field: fifteen characters of `YYYYMMDD HHMMSS`.
 ///
-/// The first eight characters are a ``ADIFDate`` and the last six are an
+/// The first eight characters are an ``ADIDate`` and the last six are an
 /// ``ADITime``, joined by a single space character.
 ///
 /// - Note: This type models the `CREATED_TIMESTAMP` header field, whose data
 ///   type is `String`. It is deliberately restricted to second resolution and
-///   to UTC because ADIF conveys no time zone offset.
+///   to UTC because ADIF conveys no time zone offset. It is a different format
+///   from the `Date` and `Time` data types that ADI records use, which is why
+///   it is a type of its own rather than an ``ADIDate`` and ``ADITime``
+///   composed together.
 public struct ADIHeaderTimestamp: Hashable, Sendable, CustomStringConvertible {
     /// The year, between `1930` and `9999` inclusive.
     public let year: Int
@@ -102,20 +105,20 @@ public struct ADIHeaderTimestamp: Hashable, Sendable, CustomStringConvertible {
         }
 
         guard
-            let year = Self.twoOrFourDigits(characters, range: 0..<4),
-            let month = Self.twoDigits(characters, at: 4),
-            let day = Self.twoDigits(characters, at: 6),
-            let hour = Self.twoDigits(characters, at: 9),
-            let minute = Self.twoDigits(characters, at: 11),
-            let second = Self.twoDigits(characters, at: 13)
+            let year = ADICalendar.digits(characters, at: 0, count: 4),
+            let month = ADICalendar.digits(characters, at: 4, count: 2),
+            let day = ADICalendar.digits(characters, at: 6, count: 2),
+            let hour = ADICalendar.digits(characters, at: 9, count: 2),
+            let minute = ADICalendar.digits(characters, at: 11, count: 2),
+            let second = ADICalendar.digits(characters, at: 13, count: 2)
         else {
             return nil
         }
 
         guard
-            (1930...9999).contains(year),
+            ADICalendar.isPermittedYear(year),
             (1...12).contains(month),
-            (1...Self.daysInMonth(month, year: year)).contains(day),
+            (1...ADICalendar.daysInMonth(month, year: year)).contains(day),
             (0...23).contains(hour),
             (0...59).contains(minute),
             (0...59).contains(second)
@@ -158,55 +161,13 @@ public struct ADIHeaderTimestamp: Hashable, Sendable, CustomStringConvertible {
         minute: Int,
         second: Int
     ) -> String {
-        func padded(_ value: Int, width: Int) -> String {
-            let digits = String(value)
-            guard digits.count < width else {
-                return digits
-            }
+        let date = ADICalendar.padded(year, width: 4)
+            + ADICalendar.padded(month, width: 2)
+            + ADICalendar.padded(day, width: 2)
+        let time = ADICalendar.padded(hour, width: 2)
+            + ADICalendar.padded(minute, width: 2)
+            + ADICalendar.padded(second, width: 2)
 
-            return String(repeating: "0", count: width - digits.count) + digits
-        }
-
-        return padded(year, width: 4) + padded(month, width: 2) + padded(day, width: 2)
-            + " " + padded(hour, width: 2) + padded(minute, width: 2) + padded(second, width: 2)
-    }
-
-    private static func twoDigits(_ characters: [Character], at offset: Int) -> Int? {
-        Self.twoOrFourDigits(characters, range: offset..<(offset + 2))
-    }
-
-    private static func twoOrFourDigits(_ characters: [Character], range: Range<Int>) -> Int? {
-        var value = 0
-
-        for index in range {
-            guard characters[index].isASCII, characters[index].isNumber else {
-                return nil
-            }
-
-            value = value * 10 + characters[index].wholeNumberValue!
-        }
-
-        return value
-    }
-
-    /// Whether `year` is a leap year in the Gregorian calendar.
-    ///
-    /// - Parameter year: The year to test.
-    /// - Returns: `true` if `year` is a leap year.
-    public static func isLeapYear(_ year: Int) -> Bool {
-        (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
-    }
-
-    private static func daysInMonth(_ month: Int, year: Int) -> Int {
-        switch month {
-        case 1, 3, 5, 7, 8, 10, 12:
-            31
-        case 4, 6, 9, 11:
-            30
-        case 2:
-            isLeapYear(year) ? 29 : 28
-        default:
-            0
-        }
+        return date + " " + time
     }
 }
