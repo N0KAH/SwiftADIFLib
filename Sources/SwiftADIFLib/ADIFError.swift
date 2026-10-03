@@ -68,6 +68,11 @@ public enum ADIFError: Error, Hashable, Sendable, CustomStringConvertible {
     /// - Parameter name: The name of the offending tag.
     case unexpectedTagInHeader(name: String)
 
+    /// A tag appeared inside a record that may not appear there.
+    ///
+    /// - Parameter name: The name of the offending tag.
+    case unexpectedTagInRecord(name: String)
+
     /// An `ADIF_VER` header field did not contain a valid `X.Y.Z` version.
     ///
     /// - Parameter found: The text that was found in place of a version.
@@ -141,6 +146,8 @@ public enum ADIFError: Error, Hashable, Sendable, CustomStringConvertible {
             "Reached the end of the content before the <EOH> tag."
         case let .unexpectedTagInHeader(name):
             "Tag <\(name)> may not appear inside an ADI header."
+        case let .unexpectedTagInRecord(name):
+            "Tag <\(name)> may not appear inside an ADI record."
         case let .invalidUserDefinedFieldPosition(position):
             "USERDEF field numbers must be positive integers, but \(position) was used."
         case let .duplicateUserDefinedFieldPosition(position):

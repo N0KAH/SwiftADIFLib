@@ -1,0 +1,11 @@
+ADIF Export from RumLogNG by DL2RUM
+For further info visit: https://www.dl2rum.de
+
+<ADIF_VER:5>3.1.7
+<CREATED_TIMESTAMP:15>20261003 033914
+<PROGRAMID:8>RUMlogNG
+<PROGRAMVERSION:5>6.5.1
+<EOH>
+
+
+<call:5>W5ITR <qso_date:8>20261003 <time_on:6>033628 <qso_date_off:8>20261003 <time_off:6>033628 <band:3>40m <freq:8>7.091500 <mode:4>JTTY <submode:4>JTTY <app_rumlog_qsl:1>W <qsl_rcvd:1>N <qsl_sent:1>R <dxcc:3>291 <cqz:1>4 <ituz:1>7 <cont:2>NA <comment:4>JTTY <eqsl_qsl_rcvd:1>N <eqsl_qsl_sent:1>N <lotw_qsl_rcvd:1>N <lotw_qsl_sent:1>N <pfx:2>W5 <clublog_qso_upload_status:1>M <app_rumlog_colorcode:1>0 <eor>

@@ -333,6 +333,412 @@ def emit(key, typename, title, outdir):
     return t, members
 
 
+# The enumerations the specification defines for QSO fields, mapped to the Swift
+# type that models each one.
+RECORD_ENUMERATIONS = {
+    "Ant Path": "ADIAntPath",
+    "ARRL Section": "ADIARRLSection",
+    "Band": "ADIBand",
+    "Contest ID": "ADIContestID",
+    "Continent": "ADIContinent",
+    "Credit Award (import-only)": "ADICredit",
+    "DXCC Entity Code": "ADIDXCCEntityCode",
+    "EQSL_AG": "ADIEQSL_AG",
+    "Mode": "ADIMode",
+    "Morse Key Type": "ADIMorseKeyType",
+    "Propagation Mode": "ADIPropagationMode",
+    "QSL Rcvd": "ADIQSLRcvd",
+    "QSL Sent": "ADIQSLSent",
+    "QSL Via": "ADIQSLVia",
+    "QSO Complete": "ADIQSOComplete",
+    "QSO Download Status": "ADIQSODownloadStatus",
+    "QSO Upload Status": "ADIQSOUploadStatus",
+    "Sponsored Award": "ADISponsoredAward",
+    "Submode (function of MODE field's value)": "ADISubmode",
+}
+
+# Fields the specification types as `Enumeration` while publishing no values for
+# them. An administrative subdivision code means nothing without the DXCC entity
+# that issued it, the DARC codes are published on the DARC website, and
+# MY_COUNTRY holds an entity name rather than a code. Each stays a String, and
+# the record resolves the subdivisions through ADIPrimaryAdministrativeSubdivision.
+RECORD_UNENUMERATED = {
+    "(DOKs and Special DOKs listed on the DARC website)",
+    "(Primary Administrative Subdivision, function of DXCC field's value)",
+    "(Primary Administrative Subdivision, function of MY_DXCC field's value)",
+    "(Secondary Administrative Subdivision, function of DXCC field's value)",
+    "(Secondary Administrative Subdivision, function of MY_DXCC field's value)",
+    # A region code is likewise unique only within its entity, which is why
+    # ADIRegion is a keyed table rather than an ADIEnumeration.
+    "Region",
+    "Country",
+}
+
+# Data types that are not enumerations, mapped to the Swift type holding them.
+RECORD_DATA_TYPES = {
+    "Boolean": "Bool",
+    "CreditList AwardList (import-only)": "[ADICredit]",
+    "Date": "ADIDate",
+    "GridSquare": "String",
+    "GridSquareExt": "String",
+    "GridSquareList": "[String]",
+    "IOTARefNo": "String",
+    "IntlMultilineString": "String",
+    "IntlString": "String",
+    "Integer": "Int",
+    "Location": "Double",
+    "MultilineString": "String",
+    "Number": "Double",
+    "POTARefList": "[String]",
+    "PositiveInteger": "Int",
+    "SOTARef": "String",
+    "SecondaryAdministrativeSubdivisionListAlt": "[String]",
+    "SecondarySubdivisionList": "[String]",
+    "SponsoredAwardList": "[ADISponsoredAward]",
+    "String": "String",
+    "Time": "ADITime",
+    "WWFFRef": "String",
+}
+
+# Fields whose property name departs from the mechanical camel-cased field name.
+#
+# The first group is the fields whose camel-cased form is a Swift keyword, each
+# named for what the specification says the field holds. `OPERATOR` is spelled
+# `operatorCallsign` rather than with a `my` prefix: the specification defines no
+# `MY_OPERATOR` field, and 42 properties that genuinely are `MY_*` fields would
+# otherwise make the prefix look meaningful where it is not.
+#
+# The second group is named for the specification's own wording, so that the
+# logging station reads consistently across the resolved properties.
+RECORD_RENAMES = {
+    "CLASS": "contestClass",
+    "OPERATOR": "operatorCallsign",
+    "PRECEDENCE": "contestPrecedence",
+    "STATION_CALLSIGN": "loggingStationCallsign",
+}
+
+# The fields the convenience initializer accepts. Every other field is set by
+# assigning its property, so this is the common case rather than a required set.
+RECORD_CORE = ["CALL", "QSO_DATE", "TIME_ON", "BAND", "MODE", "FREQ", "DXCC"]
+
+# Keywords and reserved words a mechanical camel-cased field name could produce.
+# Checked so that a later release adding such a field fails at generation time
+# rather than emitting a file that will not compile.
+SWIFT_RESERVED = set(
+    """
+    Any Self Type Protocol as associatedtype await break case catch class continue
+    default defer deinit do dynamic else enum extension fallthrough false fileprivate
+    final for func get guard if import indirect in infix init inout internal is lazy
+    left let mutating nil none nonmutating open operator optional override postfix
+    precedence prefix private protocol public repeat required rethrows return right
+    self set some static struct subscript super switch throw throws true try typealias
+    unowned var weak where while willSet didSet
+    """.split()
+)
+
+
+def camel_field(name):
+    """Camel-case a field name the way the record's properties are spelled.
+
+    Distinct from the `camel` above, which builds an enumeration case name from a
+    specification meaning and takes a type prefix.
+    """
+    parts = name.lower().split("_")
+    joined = parts[0] + "".join(part.capitalize() for part in parts[1:])
+
+    return joined[:1].lower() + joined[1:]
+
+
+def record_property(field):
+    """The Swift property name modelling one QSO field."""
+    name = field["name"]
+    prop = RECORD_RENAMES.get(name) or camel_field(name)
+
+    if prop in SWIFT_RESERVED:
+        fail(f"{name} camel-cases to the Swift reserved word {prop!r}; add a rename")
+
+    return prop
+
+
+def record_type(field):
+    """The Swift type modelling one QSO field's data."""
+    name = field["name"]
+    enumeration = field["enumeration"]
+    data_type = field["type"]
+
+    # A list data type carries its own element type, and wins over the field's
+    # enumeration: CREDIT_SUBMITTED is a list of Award values, not one of them.
+    mapped = RECORD_DATA_TYPES.get(data_type)
+    if mapped and mapped.startswith("["):
+        return mapped
+
+    if enumeration in RECORD_ENUMERATIONS:
+        return RECORD_ENUMERATIONS[enumeration]
+
+    if enumeration and enumeration not in RECORD_UNENUMERATED:
+        fail(f"{name} names enumeration {enumeration!r}, which has no Swift type")
+
+    if enumeration:
+        return "String"
+
+    if mapped:
+        return mapped
+
+    fail(f"{name} has data type {data_type!r}, which has no Swift type")
+
+
+def record_read(swift, field_name):
+    """The expression reading one field's data out of a specifier."""
+    if swift.startswith("["):
+        element = swift[1:-1]
+        if element == "String":
+            return "ADIRecordCoder.list(specifier.data)"
+
+        return f"ADIRecordCoder.enumerationList(specifier.data, as: {element}.self)"
+
+    if swift == "String":
+        return "specifier.data"
+
+    coder = {
+        "ADIDate": "date",
+        "ADITime": "time",
+        "Bool": "boolean",
+        "Double": "number",
+        "Int": "integer",
+    }.get(swift)
+
+    if coder:
+        return f"try ADIRecordCoder.{coder}(specifier.data, field: {lit(field_name)})"
+
+    if swift in RECORD_ENUMERATIONS.values():
+        return f"ADIRecordCoder.enumeration(specifier.data, as: {swift}.self)"
+
+    fail(f"no reader for Swift type {swift!r}")
+
+
+def record_write(swift, value):
+    """The expression rendering one field's value as its ADI text."""
+    if swift.startswith("["):
+        element = swift[1:-1]
+        if element == "String":
+            return f"{value}.joined(separator: \",\")"
+
+        return f"{value}.map {{ $0.description }}.joined(separator: \",\")"
+
+    if swift == "Bool":
+        # A Boolean is written as a single Y or N; `true` is not ADI text.
+        return f'{value} ? "Y" : "N"'
+
+    return f"{value}.description"
+
+
+def emit_record(outdir):
+    """Write ADIRecord, one property per QSO field the specification defines."""
+    fields = MODEL["fields"]["qso"]
+    resolved = [
+        (field["name"], record_property(field), record_type(field), field["comment"])
+        for field in fields
+    ]
+
+    by_name = {name: (prop, swift) for name, prop, swift, _ in resolved}
+    for required in RECORD_CORE:
+        if required not in by_name:
+            fail(f"the convenience initializer wants {required}, which the field table lacks")
+
+    out = []
+
+    def add(text=""):
+        out.append(text)
+
+    add("// This file is generated by Scripts/generate_reference_types.py. Do not edit it by hand.")
+    add("")
+    add("/// One QSO record: a single contact, as an ADI file records it.")
+    add("///")
+    add("/// A record is the sequence of Data-Specifiers that a logging station writes for one")
+    add("/// contact, terminated by the `<EOR>` tag. This type models every field the ADIF")
+    add("/// specification defines for a QSO record, one property per field, so a parsed")
+    add("/// contact is reachable by name rather than by string lookup.")
+    add("///")
+    add("/// - Note: Properties are generated from the specification's field table, so their")
+    add("///   names follow the field names it uses. `CLASS` is ``contestClass`` and `PRECEDENCE`")
+    add("///   is ``contestPrecedence`` because the mechanical form is a Swift keyword, and")
+    add("///   `OPERATOR` is ``operatorCallsign`` because the specification defines no")
+    add("///   `MY_OPERATOR` field, which would make a `my` prefix look meaningful where it is")
+    add("///   not. `STATION_CALLSIGN` is ``loggingStationCallsign``, after the specification's")
+    add("///   own wording, so that the logging station reads the same way throughout.")
+    add("///")
+    add("/// - Note: A field the specification types as an enumeration is held as its `ADI` type,")
+    add("///   which never fails to parse: a value the specification has not published yet is")
+    add("///   preserved as `unrecognized` rather than discarded.")
+    add("public struct ADIRecord: Hashable, Sendable {")
+
+    for name, prop, swift, comment in resolved:
+        add("")
+        summary = collapse(comment).strip()
+        summary = summary[:1].upper() + summary[1:] if summary else name
+        if not summary.endswith("."):
+            summary += "."
+        for line in doc(summary, "    "):
+            add(line)
+        add("    ///")
+        add(f"    /// - Note: The specification's `{name}` field.")
+        add(f"    public var {prop}: {swift}?")
+
+    add("")
+    add("    /// Fields this library does not model explicitly.")
+    add("    ///")
+    add("    /// A record may hold fields added by a later release of the specification, or")
+    add("    /// fields belonging to a non-standard tool. Reading collects them here so that")
+    add("    /// parsing and re-serializing content does not silently discard data.")
+    add("    ///")
+    add("    /// - Note: Unrecognized fields come into existence only by reading content, so")
+    add("    ///   this array is empty for a record you generate.")
+    add("    public var unknownFields: [ADIUnknownField]")
+    add("")
+    add("    /// The contacted station's primary administrative subdivision, resolved against")
+    add("    /// the record's `DXCC` entity.")
+    add("    ///")
+    add("    /// A primary subdivision code is unique only within the entity that issues it,")
+    add("    /// which is why `STATE` is stored as text and resolved here.")
+    add("    ///")
+    add("    /// - Returns: The subdivision, or `nil` if either the code or the entity is")
+    add("    ///   absent, or the specification defines no such code for that entity.")
+    add("    public var contactedStationSubdivision: ADIPrimaryAdministrativeSubdivision? {")
+    add("        guard let state, let dxcc else {")
+    add("            return nil")
+    add("        }")
+    add("")
+    add("        return ADIPrimaryAdministrativeSubdivision(code: state, dxccEntityCode: dxcc.description)")
+    add("    }")
+    add("")
+    add("    /// The contacted station's region within its DXCC entity.")
+    add("    ///")
+    add("    /// A region code is unique only within the entity that issues it, which is why")
+    add("    /// `REGION` is stored as text and resolved here.")
+    add("    ///")
+    add("    /// - Returns: The region, or `nil` if either the code or the entity is absent,")
+    add("    ///   or the specification defines no such code for that entity.")
+    add("    public var contactedStationRegion: ADIRegion? {")
+    add("        guard let region, let dxcc else {")
+    add("            return nil")
+    add("        }")
+    add("")
+    add("        return ADIRegion(code: region, dxccEntityCode: dxcc.description)")
+    add("    }")
+    add("")
+    add("    /// The logging station's primary administrative subdivision, resolved against")
+    add("    /// the record's `MY_DXCC` entity.")
+    add("    ///")
+    add("    /// - Returns: The subdivision, or `nil` if either the code or the entity is")
+    add("    ///   absent, or the specification defines no such code for that entity.")
+    add("    public var loggingStationSubdivision: ADIPrimaryAdministrativeSubdivision? {")
+    add("        guard let myState, let myDxcc else {")
+    add("            return nil")
+    add("        }")
+    add("")
+    add("        return ADIPrimaryAdministrativeSubdivision(code: myState, dxccEntityCode: myDxcc.description)")
+    add("    }")
+    add("")
+    add("    /// Creates an empty record.")
+    add("    ///")
+    add("    /// Every field is optional, so a record is built by assigning its properties.")
+    add("    public init() {")
+    add("        unknownFields = []")
+    add("    }")
+    add("")
+    add("    /// Creates a record holding the fields a contact is normally identified by.")
+    add("    ///")
+    add("    /// - Parameters:")
+    core = [(by_name[n][0], by_name[n][1]) for n in RECORD_CORE]
+    for index, (prop, swift) in enumerate(core):
+        tail = ")" if index == len(core) - 1 else ","
+        add(f"    ///   - {prop}: The corresponding field, or `nil`.")
+    add("    public init(")
+    for index, (prop, swift) in enumerate(core):
+        tail = "" if index == len(core) - 1 else ","
+        add(f"        {prop}: {swift}? = nil{tail}")
+    add("    ) {")
+    add("        self.init()")
+    for prop, _ in core:
+        add(f"        self.{prop} = {prop}")
+    add("    }")
+    add("")
+    add("    /// Parses one record from the text of an ADI record.")
+    add("    ///")
+    add("    /// - Parameter text: The record's fields, with or without the trailing `<EOR>`")
+    add("    ///   tag. Free-form text before the first `<` is ignored, as the specification")
+    add("    ///   requires. Fields this library does not recognize are collected into")
+    add("    ///   ``unknownFields``.")
+    add("    /// - Throws: ``ADIFError`` if a tag is malformed, if a field's data does not")
+    add("    ///   match the type the specification gives it, or if a `<EOH>` tag appears")
+    add("    ///   where a record field was expected.")
+    add("    public init(parsing text: String) throws {")
+    add("        self.init()")
+    add("")
+    add("        var scanner = ADITagScanner(text)")
+    add("        _ = scanner.consumeLeadingText()")
+    add("")
+    add("        while let tag = try scanner.scanTag() {")
+    add("            switch tag {")
+    add("            case .endOfRecord:")
+    add("                return")
+    add("            case .endOfHeader:")
+    add("                throw ADIFError.unexpectedTagInRecord(name: tag.name)")
+    add("            case let .dataSpecifier(specifier):")
+    add("                try apply(specifier)")
+    add("            }")
+    add("        }")
+    add("    }")
+    add("")
+    add("    /// Renders this record in ADI form, including the terminating `<EOR>` tag.")
+    add("    ///")
+    add("    /// Fields are written in the order the specification presents them, followed by")
+    add("    /// any unrecognized fields in the order they were given, so that serializing a")
+    add("    /// record twice produces the same text.")
+    add("    ///")
+    add("    /// - Returns: The record's fields separated by spaces and terminated by")
+    add("    ///   `<EOR>`.")
+    add("    /// - Throws: ``ADIFError/invalidFieldName(name:reason:)`` if an unrecognized")
+    add("    ///   field's name is not usable, or")
+    add("    ///   ``ADIFError/unsupportedDataType(dataType:reason:)`` if one carries a data")
+    add("    ///   type that may only appear in an ADX file.")
+    add("    public func serialized() throws -> String {")
+    add("        var specifiers: [ADIDataSpecifier] = []")
+    add("")
+    for name, prop, swift, _ in resolved:
+        add(f"        if let {prop} {{")
+        add(f"            specifiers.append(")
+        add(f"                try ADIDataSpecifier(name: {lit(name)}, data: {record_write(swift, prop)})")
+        add("            )")
+        add("        }")
+        add("")
+    add("        for field in unknownFields {")
+    add("            specifiers.append(try field.validatedForADI())")
+    add("        }")
+    add("")
+    add("        guard !specifiers.isEmpty else {")
+    add("            return \"<EOR>\"")
+    add("        }")
+    add("")
+    add("        return specifiers.map { $0.serialized() }.joined(separator: \" \") + \" <EOR>\"")
+    add("    }")
+    add("")
+    add("    private mutating func apply(_ specifier: ADIDataSpecifier) throws {")
+    add("        switch specifier.name {")
+    for name, prop, swift, _ in resolved:
+        add(f"        case {lit(name)}:")
+        add(f"            {prop} = {record_read(swift, name)}")
+    add("        default:")
+    add("            unknownFields.append(ADIUnknownField(specifier))")
+    add("        }")
+    add("    }")
+    add("}")
+
+    write_source(outdir, "ADIRecord", out)
+
+    return "ADIRecord", [name for name, _, _, _ in resolved]
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     outdir = args[0] if args else os.path.join(HERE, "build")
@@ -393,6 +799,11 @@ def main():
         print(f"  note: {len(reused)} subdivision codes are reused within a DXCC entity")
         for (entity, code), names in sorted(reused.items()):
             print(f"    {entity}/{code}: {' | '.join(names)}")
+
+# The record is not an enumeration, so it does not join the model or the case
+    # count; it is the whole QSO field table expressed as one Swift struct.
+    record_name, record_fields = emit_record(outdir)
+    print(f"{record_name:40} {len(record_fields):4} fields")
 
     write_if_changed(
         os.path.join(HERE, "enum_model.json"),

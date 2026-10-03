@@ -77,8 +77,9 @@ Cite the spec section or field name in comments when behavior is non-obvious.
 
 ### Generated reference types
 
-The enumerations in `Records/` are generated, not hand-edited. Two scripts
-reproduce them from the specification document:
+The enumerations in `Records/` are generated, not hand-edited, and so is
+`ADIRecord`, which models one QSO record. Two scripts reproduce them from the
+specification document:
 
 ```sh
 # Download the specification to Scripts/spec.htm from https://adif.org/adif
@@ -91,6 +92,17 @@ To refresh the checked-in sources, pass `--in-place`:
 ```sh
 python3 Scripts/generate_reference_types.py --in-place   # -> Records/
 ```
+
+`ADIRecord.swift` is generated from the QSO field table, so its properties
+follow that table's field names and its parsing and serialization are switches
+over those names. Change the generator, not the Swift: `RECORD_RENAMES` for a
+property whose name departs from its field name, and `RECORD_DATA_TYPES` and
+`RECORD_ENUMERATIONS` for how a field's data is typed. A rename is deliberate,
+so leave a comment saying why; `OPERATOR` is `operatorCallsign` and
+`STATION_CALLSIGN` is `loggingStationCallsign` because the specification defines
+no `MY_OPERATOR` field, which would otherwise make a `my` prefix look
+systematic when it applies to only 42 of the 181 properties. `ADIRecordCoder.swift`
+holds the conversions the generated switch calls and is written by hand.
 
 - Leave the generator's output directory alone when checking your work. A bare
   run goes to a scratch copy for exactly that reason: rewriting a file with
