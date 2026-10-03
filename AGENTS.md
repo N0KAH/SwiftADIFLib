@@ -90,7 +90,9 @@ Neither the document nor the model is committed; `Scripts/.gitignore` excludes
 both. Every file the scripts touch is generated from a manifest that names the
 specification table it reads and the number of data rows the specification is
 expected to hold, so a new ADIF release fails with `expected N data rows, found
-M` rather than generating something quietly wrong.
+M` rather than generating something quietly wrong. `MANIFEST` holds the
+enumerations and `EXPECTED` holds the subdivision and field tables, which are
+described rather than enumerated.
 
 Two details in `adif_table.py` are load-bearing, because the specification shares
 cells across logical rows and a reader that ignores that produces plausible but
@@ -106,6 +108,17 @@ wrong output:
 carrying a Data Type, since the field tables are the only ones with that column.
 Prefer changing `MANIFEST` and the overrides in `generate_reference_types.py` over
 editing generated sources; an edit to a generated file is lost on the next run.
+
+Two specification quirks the generated types have to respect, both of which the
+tests pin down:
+
+- A primary subdivision code is unique only within its DXCC entity, so
+  `ADIPrimaryAdministrativeSubdivision` takes the entity as part of the key.
+  `15/01`, `227/01` and `70/01` are all different places.
+- Two codes are reused *within* one entity, because the specification names both
+  the subdivision retired at a date and its replacement: `15/PM` and `206/BM`.
+  The lookup therefore keeps every candidate and reports them at generation
+  time, rather than resolving to whichever row came first.
 
 ## Testing
 

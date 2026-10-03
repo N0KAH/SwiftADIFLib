@@ -67,6 +67,20 @@ NZ_REGIONS = 93
 HEADER_FIELDS = 96
 QSO_FIELDS = 97
 
+# Row counts for the tables that are not simple enumerations of values. These are
+# checked in main() for the same reason MANIFEST is: a specification release that
+# adds or removes a subdivision should stop here rather than change the generated
+# Swift without anyone noticing.
+EXPECTED = {
+    "primarySubdivisions": 1965,
+    "secondarySchemes": 18,
+    "alaskaCounties": 58,
+    "alternateSchemes": 1,
+    "nzRegions": 73,
+    "headerFields": 5,
+    "qsoFields": 181,
+}
+
 COUNTRY_HEADING = re.compile(r"^Enumeration for Country Code (\d+) \((.*)\)$")
 DELETED = "deleted"
 
@@ -117,10 +131,13 @@ def primary_subdivisions(tables):
         for row in rows[2:]:
             cells = [c.strip() for c in row]
             name = cells[1] if len(cells) > 1 else ""
-            if cells[0] and not name:
-                region = cells[0]
+            if not cells[0]:
                 continue
-            if not cells[0] and not name:
+            if cells[0] == name:
+                # A district heading spans both columns and holds the same text
+                # in each, where a real row's code and name always differ. The
+                # specification groups Slovakia's codes this way.
+                region = cells[0]
                 continue
 
             subdivisions.append({
@@ -139,10 +156,16 @@ def primary_subdivisions(tables):
 
 
 def column(cells, columns, label):
-    if label not in columns:
-        return None
-    value = cells[columns.index(label)]
-    return value or None
+    """Read a named column, ignoring case.
+
+    The specification is inconsistent about capitals -- 'Deleted' in the Alaska
+    and Aland tables -- so matching exactly would silently leave every deletion
+    flag false.
+    """
+    for index, name in enumerate(columns):
+        if name.strip().lower() == label.lower():
+            return cells[index] if index < len(cells) else ""
+    return None
 
 
 def secondary_schemes(tables):
@@ -274,6 +297,31 @@ def cross_check(model):
              + "\n  ".join(leaks))
 
 
+def count_check(model):
+    """Refuse an extraction whose table sizes no longer match the specification.
+
+    MANIFEST covers the enumerations; these are the tables that describe
+    administrative subdivisions and fields instead. A specification release that
+    adds a subdivision changes the count, and that should stop here rather than
+    silently change generated Swift.
+    """
+    secondary = model["secondarySubdivisions"]
+    found = {
+        "primarySubdivisions": len(model["primarySubdivisions"]),
+        "secondarySchemes": len(secondary["schemes"]),
+        "alaskaCounties": len(secondary["alaskaCounties"]),
+        "alternateSchemes": len(secondary["alternate"]),
+        "nzRegions": len(secondary["nzRegions"]),
+        "headerFields": len(model["fields"]["header"]),
+        "qsoFields": len(model["fields"]["qso"]),
+    }
+
+    for name, expected in EXPECTED.items():
+        if found[name] != expected:
+            fail(f"{name}: expected {expected} rows, found {found[name]}. "
+                 "The specification has probably been revised; update EXPECTED.")
+
+
 def main():
     source = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "spec.htm")
     target = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "spec_model.json")
@@ -301,6 +349,7 @@ def main():
     }
 
     cross_check(model)
+    count_check(model)
 
     with open(target, "w") as handle:
         json.dump(model, handle, indent=1, ensure_ascii=False)

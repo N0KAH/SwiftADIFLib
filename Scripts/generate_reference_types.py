@@ -334,6 +334,34 @@ def main():
         "members": regions,
     }
     print(f"{name:22} {len(regions):4} regions (keyed)")
+
+    for emitter, section, label in (
+        (emit_primary_subdivisions, "III.B.12. Primary Administrative Subdivision", "subdivisions"),
+        (emit_secondary_schemes, "III.B.22./III.B.23. Secondary Administrative Subdivision", "schemes"),
+        (emit_alaska_counties, "III.B.22.a. Alaska Counties", "counties"),
+        (emit_nz_regions, "III.B.23.a. NZ Regions", "regions"),
+    ):
+        name, members = emitter(outdir)
+        model[name] = {
+            "specSection": section,
+            "specTitle": name,
+            "members": members,
+        }
+        print(f"{name:40} {len(members):4} {label}")
+
+    # The specification reuses a subdivision code within one DXCC entity where it
+    # renamed a subdivision at a date, naming both. Report it rather than let the
+    # lookup quietly resolve to whichever came first.
+    keys = {}
+    for row in MODEL["primarySubdivisions"]:
+        keys.setdefault((row["dxccEntityCode"], row["code"]), []).append(row["name"])
+
+    reused = {k: v for k, v in keys.items() if len(v) > 1}
+    if reused:
+        print(f"  note: {len(reused)} subdivision codes are reused within a DXCC entity")
+        for (entity, code), names in sorted(reused.items()):
+            print(f"    {entity}/{code}: {' | '.join(names)}")
+
     json.dump(model, open(os.path.join(HERE, "enum_model.json"), "w"), indent=1)
     print(f"total cases: {total}")
 
@@ -602,11 +630,538 @@ def emit_credit(outdir):
 
 
 def region_literal(t, region):
-    def lit(value):
-        return "nil" if not value else chr(34) + value + chr(34)
     return (f'{t}(code: "{region["code"]}", dxccEntityCode: {lit(region["dxcc"])}, '
             f'name: "{region["name"]}", prefix: {lit(region["prefix"])}, '
             f'applicability: {lit(region["applicability"])})')
+
+
+def lit(value):
+    """Quote a specification value for Swift, or emit nil when it is absent.
+
+    Specification text carries characters that are literal in HTML but not in
+    Swift -- Russian Districts' sponsor is `Tambov award group ("TAG")` -- so
+    quotes and backslashes are escaped rather than emitted raw.
+    """
+    if not value:
+        return "nil"
+
+    escaped = value.replace("\\", "\\\\").replace(chr(34), "\\" + chr(34))
+    return chr(34) + escaped + chr(34)
+
+
+def add_list(out, entries):
+    """Add array-literal entries, separating every one but the last with a comma."""
+    last = len(entries) - 1
+    for index, entry in enumerate(entries):
+        out.append("        " + entry + ("" if index == last else ","))
+
+
+def emit_primary_subdivisions(outdir):
+    """III.B.12, one table per DXCC entity.
+
+    A code means nothing on its own: Quebec is QC inside Canada and nothing
+    anywhere else, so the DXCC entity is part of the key rather than a filter.
+    The file therefore keeps a single list and derives its indexes from it, which
+    also keeps it to a third the size of repeating every entry in each index.
+    """
+    t = "ADIPrimaryAdministrativeSubdivision"
+    rows = MODEL["primarySubdivisions"]
+    out = []
+    add = out.append
+
+    add("/// A primary administrative subdivision of a DXCC entity, such as a province,")
+    add("/// state, or oblast.")
+    add("///")
+    add("/// The specification defines these per DXCC entity in its section III.B.12, and")
+    add("/// a code is only meaningful inside the entity that defines it. Look one up with")
+    add("/// `init(code:dxccEntityCode:)` rather than treating the code as global.")
+    add("///")
+    add("/// - Note: Some entities group their codes under a district heading, such as")
+    add("///   Austria's states under `Wien`, which is reported by `region`.")
+    add("public struct " + t + ": Hashable, Sendable, CustomStringConvertible {")
+    add("    /// The subdivision code, as the specification spells it.")
+    add("    public let code: String")
+    add("")
+    add("    /// The subdivision's name.")
+    add("    public let name: String")
+    add("")
+    add("    /// The DXCC entity that defines this subdivision.")
+    add("    public let dxccEntityCode: String")
+    add("")
+    add("    /// The DXCC entity's name.")
+    add("    public let dxccEntityName: String")
+    add("")
+    add("    /// The district or region this subdivision sits within, where the entity")
+    add("    ///   groups its codes that way.")
+    add("    ///")
+    add("    /// - Note: `nil` where the specification lists the subdivision without a")
+    add("    ///   grouping heading.")
+    add("    public let region: String?")
+    add("")
+    add("    /// The oblast number, where the specification gives one.")
+    add("    public let oblast: String?")
+    add("")
+    add("    /// The CQ zone or zones this subdivision lies in.")
+    add("    public let cqZone: String?")
+    add("")
+    add("    /// The ITU zone or zones this subdivision lies in.")
+    add("    public let ituZone: String?")
+    add("")
+    add("    /// Whether the specification has retired this subdivision.")
+    add("    ///")
+    add("    /// - Note: A retired subdivision is kept rather than dropped so a log that")
+    add("    ///   used it still validates.")
+    add("    public let isDeleted: Bool")
+    add("")
+    add("    /// Every primary administrative subdivision the specification defines.")
+    add("    public static let allSubdivisions: [" + t + "] = [")
+
+    add_list(out, [
+        f'{t}(code: {lit(row["code"])}, name: {lit(row["name"])}, '
+        f'dxccEntityCode: {lit(row["dxccEntityCode"])}, '
+        f'dxccEntityName: {lit(row["dxccEntityName"])}, region: {lit(row["region"])}, '
+        f'oblast: {lit(row["oblast"])}, cqZone: {lit(row["cqZone"])}, '
+        f'ituZone: {lit(row["ituZone"])}, isDeleted: {str(row["deleted"]).lower()})'
+        for row in rows
+    ])
+
+    add("    ]")
+    add("")
+    add("    private static let subdivisionsByKey: [String: [" + t + "]] = {")
+    add("        var index = [String: [" + t + "]](minimumCapacity: Self.allSubdivisions.count)")
+    add("        for subdivision in Self.allSubdivisions {")
+    add('            index[Self.key(code: subdivision.code, dxccEntityCode: subdivision.dxccEntityCode), default: []].append(subdivision)')
+    add("        }")
+    add("")
+    add("        return index")
+    add("    }()")
+    add("")
+    add("    private static let subdivisionsByDXCCEntity: [String: [" + t + "]] = {")
+    add("        var index = [String: [" + t + "]](minimumCapacity: 66)")
+    add("        for subdivision in Self.allSubdivisions {")
+    add("            index[subdivision.dxccEntityCode, default: []].append(subdivision)")
+    add("        }")
+    add("")
+    add("        return index")
+    add("    }()")
+    add("")
+    add("    /// The subdivision's code.")
+    add("    public var description: String {")
+    add("        code")
+    add("    }")
+    add("")
+    add("    /// Creates a subdivision from its specification data.")
+    add("    ///")
+    add("    /// - Parameters:")
+    for name in ("code", "name", "dxccEntityCode", "dxccEntityName", "region", "oblast",
+                 "cqZone", "ituZone"):
+        add(f"    ///   - {name}: The subdivision's {name}.")
+    add("    ///   - isDeleted: Whether the specification has retired the subdivision.")
+    add("    public init(")
+    add("        code: String,")
+    add("        name: String,")
+    add("        dxccEntityCode: String,")
+    add("        dxccEntityName: String,")
+    add("        region: String? = nil,")
+    add("        oblast: String? = nil,")
+    add("        cqZone: String? = nil,")
+    add("        ituZone: String? = nil,")
+    add("        isDeleted: Bool = false")
+    add("    ) {")
+    add("        self.code = code")
+    add("        self.name = name")
+    add("        self.dxccEntityCode = dxccEntityCode")
+    add("        self.dxccEntityName = dxccEntityName")
+    add("        self.region = region")
+    add("        self.oblast = oblast")
+    add("        self.cqZone = cqZone")
+    add("        self.ituZone = ituZone")
+    add("        self.isDeleted = isDeleted")
+    add("    }")
+    add("")
+    add("    /// Creates a subdivision by looking up its code within a DXCC entity.")
+    add("    ///")
+    add("    /// - Parameters:")
+    add("    ///   - code: The subdivision code, in any case.")
+    add("    ///   - dxccEntityCode: The DXCC entity code that defines it.")
+    add("    /// - Returns: The matching subdivision, or `nil` if the specification")
+    add("    ///   defines no subdivision with that code in that entity.")
+    add("    /// - Note: The DXCC entity is required because a code is reused across")
+    add("    ///   entities and means something different in each. Where a code is reused")
+    add("    ///   within one entity, this returns the first candidate in specification")
+    add("    ///   order; see `subdivisions(code:dxccEntityCode:)` for all of them.")
+    add("    public init?(code: some StringProtocol, dxccEntityCode: some StringProtocol) {")
+    add("        guard let candidates = Self.subdivisionsByKey[")
+    add("            Self.key(code: code, dxccEntityCode: dxccEntityCode)")
+    add("        ], let subdivision = candidates.first else {")
+    add("            return nil")
+    add("        }")
+    add("")
+    add("        self = subdivision")
+    add("    }")
+    add("")
+    add("    /// Returns every subdivision the specification defines with a code in a")
+    add("    /// DXCC entity.")
+    add("    ///")
+    add("    /// - Parameters:")
+    add("    ///   - code: The subdivision code, in any case.")
+    add("    ///   - dxccEntityCode: The DXCC entity code that defines it.")
+    add("    /// - Returns: The matching subdivisions in specification order, which is empty")
+    add("    ///   where the specification defines none.")
+    add("    /// - Note: The specification reuses a code across a boundary change, naming")
+    add("    ///   both the subdivision retired at a date and the one that replaced it --")
+    add("    ///   `PM` in Asiatic Russia, for instance. Use this where that matters, and")
+    add("    ///   `init(code:dxccEntityCode:)` where the first candidate will do.")
+    add("    public static func subdivisions(code: some StringProtocol,")
+    add("                                dxccEntityCode: some StringProtocol) -> [" + t + "] {")
+    add("        Self.subdivisionsByKey[Self.key(code: code, dxccEntityCode: dxccEntityCode)] ?? []")
+    add("    }")
+    add("")
+    add("    /// Returns every primary subdivision the specification defines in a DXCC")
+    add("    /// entity.")
+    add("    ///")
+    add("    /// - Parameter dxccEntityCode: The DXCC entity code.")
+    add("    /// - Returns: That entity's subdivisions, in specification order.")
+    add("    public static func subdivisions(inDXCCEntity dxccEntityCode: some StringProtocol) -> ["
+        + t + "] {")
+    add("        Self.subdivisionsByDXCCEntity[String(dxccEntityCode)] ?? []")
+    add("    }")
+    add("")
+    add("    private static func key(code: some StringProtocol,")
+    add("                           dxccEntityCode: some StringProtocol) -> String {")
+    add('        "\\(dxccEntityCode.uppercased())/\\(code.uppercased())"')
+    add("    }")
+    add("}")
+    add("")
+    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    return t, rows
+
+
+def emit_secondary_schemes(outdir):
+    """III.B.22 and III.B.23, which describe a scheme rather than list its values.
+
+    Section III.B.23 names the single alternative enumeration NZ_Regions, which
+    describes a scheme in the same terms as III.B.22, so both are emitted here
+    rather than dropping the one row III.B.23 holds.
+    """
+    t = "ADISecondaryAdministrativeSubdivisionScheme"
+    secondary = MODEL["secondarySubdivisions"]
+    schemes = [{
+        "name": row["scheme"],
+        "dxccEntityCode": row["dxccEntityCode"],
+        "dxccEntityName": row["dxccEntityName"],
+        "count": row["count"],
+        "award": row["award"],
+        "subdivisionList": row["subdivisionList"],
+        "awardSponsor": row["awardSponsor"],
+        "codeFormat": row["codeFormat"],
+    } for row in secondary["schemes"]] + [{
+        "name": row["scheme"],
+        "dxccEntityCode": row["dxccEntityCode"],
+        "dxccEntityName": row["country"],
+        "count": None,
+        "award": row["award"],
+        "subdivisionList": row["subdivisionEnumeration"],
+        "awardSponsor": row["awardSponsor"],
+        "codeFormat": row["codeFormat"],
+    } for row in secondary["alternate"]]
+
+    out = []
+    add = out.append
+    add("/// A scheme for naming secondary administrative subdivisions within a DXCC")
+    add("/// entity, such as U.S. counties or Russian districts.")
+    add("///")
+    add("/// The specification describes these schemes in its sections III.B.22 and III.B.23")
+    add("/// rather than listing their values, because each scheme's subdivisions are")
+    add("/// published by the awarding body the scheme names. A scheme therefore says which")
+    add("/// authority maintains the list and how a code is formatted, not what every code")
+    add("/// is.")
+    add("///")
+    add("/// - Note: Section III.B.22.a does list its values, and is available as")
+    add("///   `ADIAlaskaCounty`.")
+    add("public struct " + t + ": Hashable, Sendable, CustomStringConvertible {")
+    add("    /// The scheme's name, such as `U.S. Counties`.")
+    add("    public let name: String")
+    add("")
+    add("    /// The DXCC entity this scheme applies within.")
+    add("    public let dxccEntityCode: String")
+    add("")
+    add("    /// That DXCC entity's name.")
+    add("    public let dxccEntityName: String")
+    add("")
+    add("    /// How many subdivisions the scheme defines, where the specification counts")
+    add("    ///   them.")
+    add("    public let count: String?")
+    add("")
+    add("    /// The award program the scheme serves.")
+    add("    public let award: String?")
+    add("")
+    add("    /// The name of the list of subdivisions.")
+    add("    public let subdivisionList: String?")
+    add("")
+    add("    /// The organisation that maintains the subdivision list.")
+    add("    public let awardSponsor: String?")
+    add("")
+    add("    /// How a subdivision code is formatted within this scheme.")
+    add("    public let codeFormat: String?")
+    add("")
+    add("    /// Every subdivision scheme the specification describes.")
+    add("    public static let allSchemes: [" + t + "] = [")
+    add_list(out, [
+        f'{t}(name: {lit(scheme["name"])}, '
+        f'dxccEntityCode: {lit(scheme["dxccEntityCode"])}, '
+        f'dxccEntityName: {lit(scheme["dxccEntityName"])}, count: {lit(scheme["count"])}, '
+        f'award: {lit(scheme["award"])}, '
+        f'subdivisionList: {lit(scheme["subdivisionList"])}, '
+        f'awardSponsor: {lit(scheme["awardSponsor"])}, '
+        f'codeFormat: {lit(scheme["codeFormat"])})'
+        for scheme in schemes
+    ])
+    add("    ]")
+    add("")
+    add("    private static let schemesByDXCCEntity: [String: [" + t + "]] = {")
+    add("        var index = [String: [" + t + "]](minimumCapacity: Self.allSchemes.count)")
+    add("        for scheme in Self.allSchemes {")
+    add("            index[scheme.dxccEntityCode, default: []].append(scheme)")
+    add("        }")
+    add("")
+    add("        return index")
+    add("    }()")
+    add("")
+    add("    /// The scheme's name.")
+    add("    public var description: String {")
+    add("        name")
+    add("    }")
+    add("")
+    add("    /// Creates a subdivision scheme from its specification data.")
+    add("    ///")
+    add("    /// - Parameters:")
+    add("    ///   - name: The scheme's name.")
+    add("    ///   - dxccEntityCode: The DXCC entity the scheme applies within.")
+    add("    ///   - dxccEntityName: That entity's name.")
+    add("    ///   - count: How many subdivisions the scheme defines, if stated.")
+    add("    ///   - award: The award program the scheme serves.")
+    add("    ///   - subdivisionList: The name of the list of subdivisions.")
+    add("    ///   - awardSponsor: The organisation maintaining the list.")
+    add("    ///   - codeFormat: How a subdivision code is formatted.")
+    add("    public init(")
+    add("        name: String,")
+    add("        dxccEntityCode: String,")
+    add("        dxccEntityName: String,")
+    add("        count: String? = nil,")
+    add("        award: String? = nil,")
+    add("        subdivisionList: String? = nil,")
+    add("        awardSponsor: String? = nil,")
+    add("        codeFormat: String? = nil")
+    add("    ) {")
+    add("        self.name = name")
+    add("        self.dxccEntityCode = dxccEntityCode")
+    add("        self.dxccEntityName = dxccEntityName")
+    add("        self.count = count")
+    add("        self.award = award")
+    add("        self.subdivisionList = subdivisionList")
+    add("        self.awardSponsor = awardSponsor")
+    add("        self.codeFormat = codeFormat")
+    add("    }")
+    add("")
+    add("    /// Returns every subdivision scheme that applies within a DXCC entity.")
+    add("    ///")
+    add("    /// - Parameter dxccEntityCode: The DXCC entity code.")
+    add("    /// - Returns: That entity's schemes, in specification order.")
+    add("    public static func schemes(inDXCCEntity dxccEntityCode: some StringProtocol) -> ["
+        + t + "] {")
+    add("        Self.schemesByDXCCEntity[String(dxccEntityCode)] ?? []")
+    add("    }")
+    add("}")
+    add("")
+    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    return t, schemes
+
+
+def emit_alaska_counties(outdir):
+    """III.B.22.a, the one secondary subdivision scheme whose values are listed."""
+    t = "ADIAlaskaCounty"
+    rows = MODEL["secondarySubdivisions"]["alaskaCounties"]
+    out = []
+    add = out.append
+    add("/// A borough or census area of Alaska.")
+    add("///")
+    add("/// Alaska is the one secondary administrative subdivision the specification lists")
+    add("/// in full, in its section III.B.22.a, rather than leaving to an awarding body.")
+    add("/// The `USACA_COUNTIES` field therefore validates against this list.")
+    add("///")
+    add("/// - Note: A county's code is the two-letter state abbreviation, a comma, and the")
+    add("///   county name, such as `AK,Aleutians East`.")
+    add("public struct " + t + ": Hashable, Sendable, CustomStringConvertible {")
+    add("    /// The county's code, as the specification spells it.")
+    add("    public let code: String")
+    add("")
+    add("    /// The county's name.")
+    add("    public let name: String")
+    add("")
+    add("    /// The judicial district the county sits in.")
+    add("    public let judicialDistrict: String")
+    add("")
+    add("    /// Whether the specification has retired this county.")
+    add("    ///")
+    add("    /// - Note: A retired county is kept rather than dropped so a log that used it")
+    add("    ///   still validates.")
+    add("    public let isDeleted: Bool")
+    add("")
+    add("    /// Every Alaska county the specification defines.")
+    add("    public static let allCounties: [" + t + "] = [")
+    add_list(out, [
+        f'{t}(code: {lit(row["code"])}, name: {lit(row["name"])}, '
+        f'judicialDistrict: {lit(row["judicialDistrict"])}, '
+        f'isDeleted: {str(row["deleted"]).lower()})'
+        for row in rows
+    ])
+    add("    ]")
+    add("")
+    add("    private static let countiesByCode: [String: " + t + "] = {")
+    add("        var index = [String: " + t + "](minimumCapacity: Self.allCounties.count)")
+    add("        for county in Self.allCounties {")
+    add("            index[county.code.uppercased()] = county")
+    add("        }")
+    add("")
+    add("        return index")
+    add("    }()")
+    add("")
+    add("    /// The county's code.")
+    add("    public var description: String {")
+    add("        code")
+    add("    }")
+    add("")
+    add("    /// Creates a county from its specification data.")
+    add("    ///")
+    add("    /// - Parameters:")
+    add("    ///   - code: The county's code.")
+    add("    ///   - name: The county's name.")
+    add("    ///   - judicialDistrict: The judicial district it sits in.")
+    add("    ///   - isDeleted: Whether the specification has retired the county.")
+    add("    public init(")
+    add("        code: String,")
+    add("        name: String,")
+    add("        judicialDistrict: String,")
+    add("        isDeleted: Bool = false")
+    add("    ) {")
+    add("        self.code = code")
+    add("        self.name = name")
+    add("        self.judicialDistrict = judicialDistrict")
+    add("        self.isDeleted = isDeleted")
+    add("    }")
+    add("")
+    add("    /// Creates a county by looking up its code.")
+    add("    ///")
+    add("    /// - Parameter code: The county code, in any case.")
+    add("    /// - Returns: The matching county, or `nil` if the specification defines no")
+    add("    ///   county with that code.")
+    add("    public init?(code: some StringProtocol) {")
+    add("        guard let county = Self.countiesByCode[code.uppercased()] else {")
+    add("            return nil")
+    add("        }")
+    add("")
+    add("        self = county")
+    add("    }")
+    add("}")
+    add("")
+    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    return t, rows
+
+
+def emit_nz_regions(outdir):
+    """III.B.23.a, the subdivisions behind the alternative CNTY_ALT enumeration."""
+    t = "ADINewZealandRegion"
+    rows = MODEL["secondarySubdivisions"]["nzRegions"]
+    out = []
+    add = out.append
+    add("/// A region of New Zealand, and the districts within it.")
+    add("///")
+    add("/// The specification defines these in its section III.B.23.a as the alternative")
+    add("/// subdivision enumeration `NZ_Regions`, which the `CNTY_ALT` field uses for New")
+    add("/// Zealand instead of an awarding body's list.")
+    add("///")
+    add("/// - Note: A code is the enumeration name, a colon, the region and district joined")
+    add("///   by a slash, such as `NZ_Regions:Northland/Far North`.")
+    add("public struct " + t + ": Hashable, Sendable, CustomStringConvertible {")
+    add("    /// The subdivision's code, as the specification spells it.")
+    add("    public let code: String")
+    add("")
+    add("    /// The region this district sits in.")
+    add("    public let region: String")
+    add("")
+    add("    /// The district within the region.")
+    add("    public let district: String")
+    add("")
+    add("    /// Every New Zealand region and district the specification defines.")
+    add("    public static let allRegions: [" + t + "] = [")
+    add_list(out, [
+        f'{t}(code: {lit(row["code"])}, region: {lit(row["region"])}, '
+        f'district: {lit(row["district"])})'
+        for row in rows
+    ])
+    add("    ]")
+    add("")
+    add("    private static let regionsByCode: [String: " + t + "] = {")
+    add("        var index = [String: " + t + "](minimumCapacity: Self.allRegions.count)")
+    add("        for region in Self.allRegions {")
+    add("            index[region.code.uppercased()] = region")
+    add("        }")
+    add("")
+    add("        return index")
+    add("    }()")
+    add("")
+    add("    private static let regionsByRegion: [String: [" + t + "]] = {")
+    add("        var index = [String: [" + t + "]](minimumCapacity: 16)")
+    add("        for region in Self.allRegions {")
+    add("            index[region.region.lowercased(), default: []].append(region)")
+    add("        }")
+    add("")
+    add("        return index")
+    add("    }()")
+    add("")
+    add("    /// The subdivision's code.")
+    add("    public var description: String {")
+    add("        code")
+    add("    }")
+    add("")
+    add("    /// Creates a region from its specification data.")
+    add("    ///")
+    add("    /// - Parameters:")
+    add("    ///   - code: The subdivision's code.")
+    add("    ///   - region: The region this district sits in.")
+    add("    ///   - district: The district within the region.")
+    add("    public init(code: String, region: String, district: String) {")
+    add("        self.code = code")
+    add("        self.region = region")
+    add("        self.district = district")
+    add("    }")
+    add("")
+    add("    /// Creates a region by looking up its code.")
+    add("    ///")
+    add("    /// - Parameter code: The subdivision code, in any case.")
+    add("    /// - Returns: The matching region and district, or `nil` if the specification")
+    add("    ///   defines none with that code.")
+    add("    public init?(code: some StringProtocol) {")
+    add("        guard let region = Self.regionsByCode[code.uppercased()] else {")
+    add("            return nil")
+    add("        }")
+    add("")
+    add("        self = region")
+    add("    }")
+    add("")
+    add("    /// Returns every district within a region.")
+    add("    ///")
+    add("    /// - Parameter region: The region's name, in any case.")
+    add("    /// - Returns: That region's districts, in specification order.")
+    add("    public static func districts(inRegion region: some StringProtocol) -> ["
+        + t + "] {")
+    add("        Self.regionsByRegion[region.lowercased()] ?? []")
+    add("    }")
+    add("}")
+    add("")
+    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    return t, rows
 
 
 def emit_region(outdir):
