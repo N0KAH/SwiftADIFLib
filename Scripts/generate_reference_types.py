@@ -7,7 +7,12 @@ are chosen for readability rather than mechanically: the specification's own
 meaning column names many values far better than their one- or two-letter codes.
 
 Usage:
-    python3 Scripts/generate_reference_types.py [path/to/spec_model.json]
+    python3 Scripts/generate_reference_types.py [outdir] [--in-place]
+
+With no outdir the sources land in Scripts/build, so a check run cannot disturb
+the package Xcode has open. Pass --in-place, or name Records/ directly, to write
+the real sources. Files whose content already matches are left untouched rather
+than rewritten, so a verification run over unchanged sources touches nothing.
 
 Run extract_spec.py first; every count this script reports is a check against the
 specification rather than a description of the generated code.
@@ -17,6 +22,30 @@ import json, re, os, sys, keyword, hashlib
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL = json.load(open(os.path.join(HERE, "spec_model.json")))
 RECORDS = os.path.join(os.path.dirname(HERE), "Sources", "SwiftADIFLib", "Records")
+
+
+def write_if_changed(path, text):
+    """Write text, but leave the file alone when it already matches.
+
+    Every generated source is a member of the Swift package Xcode has open, so
+    rewriting it with identical content still bumps its modification date and
+    makes Xcode re-index the whole module. Writing only real changes keeps a
+    verification run free of that churn.
+    """
+    if os.path.exists(path):
+        with open(path) as handle:
+            if handle.read() == text:
+                return False
+
+    with open(path, "w") as handle:
+        handle.write(text)
+
+    return True
+
+
+def write_source(outdir, name, lines):
+    """Write one generated Swift file, returning whether it changed."""
+    return write_if_changed(os.path.join(outdir, name + ".swift"), "\n".join(lines))
 
 # spec section, Swift type suffix, specification title, name column
 CLOSED = [
@@ -300,12 +329,15 @@ def emit(key, typename, title, outdir):
     add("}")
     add("")
 
-    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    write_source(outdir, t, out)
     return t, members
 
 
 def main():
-    outdir = sys.argv[1] if len(sys.argv) > 1 else RECORDS
+    args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    outdir = args[0] if args else os.path.join(HERE, "build")
+    if "--in-place" in sys.argv[1:] or os.path.abspath(outdir) == os.path.abspath(RECORDS):
+        outdir = RECORDS
     os.makedirs(outdir, exist_ok=True)
     model, total = {}, 0
     for key, typename, title in CLOSED:
@@ -362,7 +394,10 @@ def main():
         for (entity, code), names in sorted(reused.items()):
             print(f"    {entity}/{code}: {' | '.join(names)}")
 
-    json.dump(model, open(os.path.join(HERE, "enum_model.json"), "w"), indent=1)
+    write_if_changed(
+        os.path.join(HERE, "enum_model.json"),
+        json.dumps(model, indent=1),
+    )
     print(f"total cases: {total}")
 
 
@@ -507,7 +542,7 @@ def emit_dxcc(outdir):
     add("    }")
     add("}")
     add("")
-    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    write_source(outdir, t, out)
     return t, members
 
 
@@ -625,7 +660,7 @@ def emit_credit(outdir):
     add("    }")
     add("}")
     add("")
-    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    write_source(outdir, t, out)
     return t, members
 
 
@@ -833,7 +868,7 @@ def emit_primary_subdivisions(outdir):
     add("    }")
     add("}")
     add("")
-    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    write_source(outdir, t, out)
     return t, rows
 
 
@@ -974,7 +1009,7 @@ def emit_secondary_schemes(outdir):
     add("    }")
     add("}")
     add("")
-    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    write_source(outdir, t, out)
     return t, schemes
 
 
@@ -1065,7 +1100,7 @@ def emit_alaska_counties(outdir):
     add("    }")
     add("}")
     add("")
-    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    write_source(outdir, t, out)
     return t, rows
 
 
@@ -1160,7 +1195,7 @@ def emit_nz_regions(outdir):
     add("    }")
     add("}")
     add("")
-    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    write_source(outdir, t, out)
     return t, rows
 
 
@@ -1302,7 +1337,7 @@ def emit_region(outdir):
     add("    }")
     add("}")
     add("")
-    open(os.path.join(outdir, t + ".swift"), "w").write("\n".join(out))
+    write_source(outdir, t, out)
     return t, regions
 
 

@@ -25,6 +25,10 @@ import os
 import re
 import sys
 
+# Importing adif_table would otherwise leave a __pycache__ directory inside the
+# package Xcode has open, whose churn upsets the file watcher.
+sys.dont_write_bytecode = True
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
@@ -351,8 +355,16 @@ def main():
     cross_check(model)
     count_check(model)
 
-    with open(target, "w") as handle:
-        json.dump(model, handle, indent=1, ensure_ascii=False)
+    text = json.dumps(model, indent=1, ensure_ascii=False)
+
+    # Leave the model alone when nothing changed, so re-running this over the same
+    # specification does not make Xcode re-index the package for no reason.
+    if not os.path.exists(target) or open(target).read() != text:
+        with open(target, "w") as handle:
+            handle.write(text)
+        wrote = f"wrote {target}"
+    else:
+        wrote = f"{target} unchanged"
 
     enumerations = model["enumerations"]
     print(f"{len(enumerations)} enumerations, "
@@ -365,7 +377,7 @@ def main():
           f"{len(secondary['nzRegions'])} NZ regions")
     print(f"{len(model['fields']['header'])} header fields, "
           f"{len(model['fields']['qso'])} QSO fields")
-    print(f"wrote {target}")
+    print(wrote)
 
 
 if __name__ == "__main__":

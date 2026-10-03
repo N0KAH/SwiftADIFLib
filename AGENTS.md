@@ -82,9 +82,25 @@ reproduce them from the specification document:
 
 ```sh
 # Download the specification to Scripts/spec.htm from https://adif.org/adif
-python3 Scripts/extract_spec.py                    # -> Scripts/spec_model.json
-python3 Scripts/generate_reference_types.py        # -> Sources/SwiftADIFLib/Records
+python3 Scripts/extract_spec.py                # -> Scripts/spec_model.json
+python3 Scripts/generate_reference_types.py    # -> Scripts/build (scratch copy)
 ```
+
+To refresh the checked-in sources, pass `--in-place`:
+
+```sh
+python3 Scripts/generate_reference_types.py --in-place   # -> Records/
+```
+
+- Leave the generator's output directory alone when checking your work. A bare
+  run goes to a scratch copy for exactly that reason: rewriting a file with
+  identical content still bumps its modification date, which makes Xcode
+  re-index the package and can hang the IDE. The scripts now compare content and
+  skip the write when nothing changed, so a repeated run over an unchanged
+  specification touches nothing at all.
+- The same applies to `Scripts/spec_model.json` and `Scripts/enum_model.json`,
+  which are also left alone when their content is unchanged. Do not delete them
+  to "force" a regeneration; change the input and let the comparison decide.
 
 Neither the document nor the model is committed; `Scripts/.gitignore` excludes
 both. Every file the scripts touch is generated from a manifest that names the
