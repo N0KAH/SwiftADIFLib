@@ -124,10 +124,17 @@ Every new or modified function needs unit test coverage.
 - When a test fails, first check whether the function or the spec changed. Decide
   explicitly which one is wrong and fix that side. Do not silently relax an
   assertion to make it green, and do not delete a failing test to unblock a commit.
-- Large or real-world input belongs in `TestFiles/` at the repository root, one
-  file per fixture, named after where it came from. That directory is not a
-  SwiftPM resource, so reach a fixture by resolving `#filePath` rather than
-  `Bundle.module`, which is unavailable here.
+- Real-world and oversized input belongs in `TestFiles/` at the repository root,
+  one file per fixture, named after where it came from -- `FromRumlog.adi` is
+  exported by RumLogNG. Commit those files; they are the input half of the
+  round-trip tests.
+- A `.adi` extension marks a file in the ADI format, so a test can hand it
+  straight to the parser without conversion. Keep the extension: it is what
+  tells a reader which format the bytes are in.
+- That directory is not a SwiftPM resource, so reach a fixture by resolving
+  `#filePath` rather than `Bundle.module`, which is unavailable here. Use
+  `ADIFixture.url(named:)` from the test target instead of re-deriving the path
+  in every suite.
 - When a test covers several types, keep one suite per type rather than a single
   combined suite, so a failure points at one file.
 
