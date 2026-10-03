@@ -156,11 +156,13 @@ public enum ADIPropagationMode: ADIEnumeration {
     /// Creates a value from its textual form.
     ///
     /// - Parameter rawValue: The value, in any case.
-    /// - Returns: The matching value, or `nil` if `rawValue` names no member of
-    ///   this enumeration.
-    public init?(rawValue: some StringProtocol) {
+    /// - Returns: The matching member, or `.unrecognized` when `rawValue` names
+    ///   no value the specification defines.
+    public init(rawValue: some StringProtocol) {
         guard let member = Self.membersByLowercasedValue[rawValue.lowercased()] else {
-            return nil
+            self = .unrecognized(rawValue.description)
+
+            return
         }
 
         self = member

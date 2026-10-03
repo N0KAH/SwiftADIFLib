@@ -28,12 +28,26 @@ public protocol ADIEnumeration: Hashable, Sendable, CustomStringConvertible {
     /// Creates a value from its textual form.
     ///
     /// - Parameter rawValue: The value, in any case.
-    /// - Returns: The matching value, or `nil` if `rawValue` names no member of
-    ///   this enumeration.
-    init?(rawValue: some StringProtocol)
+    /// - Returns: The matching member, or ``ADIEnumeration/unrecognized(_:)`` when
+    ///   `rawValue` names no value this enumeration defines.
+    ///
+    /// - Important: This initializer never fails. A value the specification has
+    ///   not published yet becomes ``ADIEnumeration/unrecognized(_:)`` so that
+    ///   reading and rewriting a file does not discard it. Use
+    ///   ``isRecognized`` to reject such a value when a strict reading is
+    ///   required.
+    init(rawValue: some StringProtocol)
 }
 
 extension ADIEnumeration {
+    /// Whether the specification defines this value.
+    ///
+    /// - Note: This answers `false` for a value preserved as unrecognized,
+    ///   because the specification does not define it.
+    public var isRecognized: Bool {
+        Self.allMembers.contains(self)
+    }
+
     /// Whether the specification marks this value as import-only.
     ///
     /// - Note: This compares the canonical ``description``, so it answers `false`

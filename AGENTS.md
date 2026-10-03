@@ -8,6 +8,48 @@ SwiftADIFLib is a Swift package library for parsing, generating, and working wit
 the Amateur Data Interchange Format (ADIF) as used by amateur radio logging
 software.
 
+## Source layout
+
+Group files by the part of an ADIF file they model. The target root holds only
+cross-cutting machinery; everything else lives in one of two folders.
+
+```
+Sources/SwiftADIFLib/
+├── Header/     the header aggregate and its own field types
+├── Records/    field-level vocabulary, enumerations, and the record model
+├── ADIFError.swift
+└── ADITagScanner.swift
+```
+
+- `Header/` — `ADIHeader`, `ADIHeaderTimestamp`, `ADIFVersion`,
+  `ADIHeaderUserDefinedField`, and `ADIHeaderUserDefinedFieldSpecification`.
+  This list is closed by the specification: an ADI header has no other fields.
+- `Records/` — everything a single ADI field can be: `ADIFieldName`,
+  `ADIDataSpecifier`, `ADIDataTypeIndicator`, `ADIDate`, `ADITime`,
+  `ADIUnknownField`, `ADICalendar`, `ADIEnumeration`, and one file per
+  enumeration from section III.B of the specification.
+- The target root — types used regardless of which part of the file is being
+  read: `ADIFError` and `ADITagScanner`.
+
+A file belongs in `Records/` when it models a field, even if `Header/` also uses
+it. `ADIUnknownField`, `ADIDataSpecifier`, and `ADICalendar` are all read by the
+header because a header field is an ADI field; they stay in `Records/`. A type
+belongs at the root only when it is machinery rather than a model of the format
+itself.
+
+Other rules:
+
+- One public type per file, and the file name matches the type name.
+- Every public type is prefixed `ADI`, including header-specific types such as
+  `ADIHeaderUserDefinedField`, so that several types adopted by a consumer do
+  not collide with the consumer's own names.
+- Put a new field's type in `Records/`, and a new header field's type in
+  `Header/`. Do not create a folder for a single type, and do not add a third
+  folder without a clear domain boundary.
+- Tests stay flat in `Tests/SwiftADIFLibTests/`. Name a test file after the type
+  it covers (`ADIHeaderTests.swift` for `ADIHeader.swift`), including
+  `ADIHeader` prefixed types, so the pairing is obvious.
+
 ## The ADIF specification
 
 The normative source is <https://adif.org/adif>. Never invent field names, data
@@ -27,9 +69,43 @@ Always target the most current released version. When a new ADIF release appears
    and changed items.
 2. Update the version constant in the library (search for the version string
    first so it lives in one obvious place).
-3. Update every affected field, data type, and enumeration, plus tests for each.
+3. Run the scripts in `Scripts/` to re-extract the specification tables and
+   regenerate the reference types (see below).
+4. Update every affected field, data type, and enumeration, plus tests for each.
 
 Cite the spec section or field name in comments when behavior is non-obvious.
+
+### Generated reference types
+
+The enumerations in `Records/` are generated, not hand-edited. Two scripts
+reproduce them from the specification document:
+
+```sh
+# Download the specification to Scripts/spec.htm from https://adif.org/adif
+python3 Scripts/extract_spec.py                    # -> Scripts/spec_model.json
+python3 Scripts/generate_reference_types.py        # -> Sources/SwiftADIFLib/Records
+```
+
+Neither the document nor the model is committed; `Scripts/.gitignore` excludes
+both. Every file the scripts touch is generated from a manifest that names the
+specification table it reads and the number of data rows the specification is
+expected to hold, so a new ADIF release fails with `expected N data rows, found
+M` rather than generating something quietly wrong.
+
+Two details in `adif_table.py` are load-bearing, because the specification shares
+cells across logical rows and a reader that ignores that produces plausible but
+wrong output:
+
+- `rowspan` and `colspan` are expanded onto a grid before rows are read. A `<td
+  rowspan="4">` holding one DXCC entity code covers a whole group of schemes, and
+  reading rows as flat cell lists shifts every continuation row a column left.
+- Tables are addressed individually. The QSO field table directly follows Submode,
+  and reading sequentially once appended its 181 field names to `ADISubmode`.
+
+`extract_spec.py` also refuses an extraction in which an enumeration holds a row
+carrying a Data Type, since the field tables are the only ones with that column.
+Prefer changing `MANIFEST` and the overrides in `generate_reference_types.py` over
+editing generated sources; an edit to a generated file is lost on the next run.
 
 ## Testing
 
@@ -48,7 +124,12 @@ Every new or modified function needs unit test coverage.
 - When a test fails, first check whether the function or the spec changed. Decide
   explicitly which one is wrong and fix that side. Do not silently relax an
   assertion to make it green, and do not delete a failing test to unblock a commit.
-- Keep fixtures as files under the test target resources when input is large.
+- Large or real-world input belongs in `TestFiles/` at the repository root, one
+  file per fixture, named after where it came from. That directory is not a
+  SwiftPM resource, so reach a fixture by resolving `#filePath` rather than
+  `Bundle.module`, which is unavailable here.
+- When a test covers several types, keep one suite per type rather than a single
+  combined suite, so a failure points at one file.
 
 ## Documentation
 
@@ -74,6 +155,27 @@ library from Quick Help.
   Foundation-only unless there is a strong reason.
 - Keep `internal` for anything not intended as API surface.
 - Prefer value semantics and `struct`/`enum` where it fits.
+- Enumerations from the specification conform to `ADIEnumeration` and follow one
+  shape, so that generic code can treat them alike:
+  - One case per value the specification defines, in specification order, plus
+    `unrecognized(String)`. Never reject a value just because the library has
+    not seen it; a later specification release will define it.
+  - Name a case for what the value means rather than mechanically from its code,
+    so `ADIQSOComplete.yes` and `ADIAntPath.grayline` read as English. Where the
+    specification's own wording is already a good identifier, such as
+    `ADIARRLSection.alabama`, use that instead of the abbreviation.
+  - `description` returns the specification's canonical spelling, including
+    punctuation and case, so that `description` reproduces the value in a log
+    file exactly and a parse-and-serialize round trip is lossless.
+  - `init(rawValue:)` matches without regard to case, as the specification
+    requires, and never fails: a value the specification does not define becomes
+    `unrecognized(String)` carrying the text it was read from, so a round trip
+    cannot discard it. Callers that need to reject unknown values check
+    `isRecognized`.
+  - A value the specification marks import-only is documented as such and
+    reachable through `isImportOnly`; it is never dropped from `allMembers`.
+  - Assert each enumeration's member count in its tests, so a transcription that
+    is short or long a value fails instead of passing quietly.
 
 ## Formatting
 

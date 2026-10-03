@@ -13,9 +13,10 @@ struct EnumerationFixture: Sendable {
 
 /// Every enumeration the library models, with its specification member counts.
 ///
-/// - Note: The specification's enumerations that are not closed value sets --
-///   Credit, DXCC entity codes, regions, and administrative subdivisions -- are
-///   keyed tables rather than enumerations, so they are not listed here.
+/// - Note: Credit and DXCC entity codes are closed value sets, so they are
+///   enumerations here even though they also carry specification metadata.
+///   Regions and administrative subdivisions are keyed tables rather than
+///   enumerations, so they are not listed here.
 let enumerationFixtures: [EnumerationFixture] = [
     .init(name: "ADIAntPath", type: ADIAntPath.self, memberCount: 4, importOnlyCount: 0),
     .init(name: "ADIARRLSection", type: ADIARRLSection.self, memberCount: 90, importOnlyCount: 0),
@@ -23,6 +24,8 @@ let enumerationFixtures: [EnumerationFixture] = [
     .init(name: "ADIBand", type: ADIBand.self, memberCount: 33, importOnlyCount: 0),
     .init(name: "ADIContestID", type: ADIContestID.self, memberCount: 256, importOnlyCount: 4),
     .init(name: "ADIContinent", type: ADIContinent.self, memberCount: 7, importOnlyCount: 0),
+    .init(name: "ADICredit", type: ADICredit.self, memberCount: 71, importOnlyCount: 0),
+    .init(name: "ADIDXCCEntityCode", type: ADIDXCCEntityCode.self, memberCount: 403, importOnlyCount: 0),
     .init(name: "ADIEQSL_AG", type: ADIEQSL_AG.self, memberCount: 3, importOnlyCount: 0),
     .init(name: "ADIMode", type: ADIMode.self, memberCount: 91, importOnlyCount: 42),
     .init(name: "ADIMorseKeyType", type: ADIMorseKeyType.self, memberCount: 7, importOnlyCount: 0),
@@ -35,7 +38,7 @@ let enumerationFixtures: [EnumerationFixture] = [
     .init(name: "ADIQSODownloadStatus", type: ADIQSODownloadStatus.self, memberCount: 3, importOnlyCount: 0),
     .init(name: "ADIQSOUploadStatus", type: ADIQSOUploadStatus.self, memberCount: 3, importOnlyCount: 0),
     .init(name: "ADISponsoredAward", type: ADISponsoredAward.self, memberCount: 11, importOnlyCount: 0),
-    .init(name: "ADISubmode", type: ADISubmode.self, memberCount: 373, importOnlyCount: 0),
+    .init(name: "ADISubmode", type: ADISubmode.self, memberCount: 187, importOnlyCount: 0),
 ]
 
 @Suite("Enumerations defined by the specification")
@@ -59,7 +62,8 @@ struct ADIEnumerationTests {
             let parsed = fixture.type.init(rawValue: member.description)
             let message: Comment = "\(fixture.name): \(member.description)"
 
-            #expect(parsed?.description == member.description, message)
+            #expect(parsed.description == member.description, message)
+            #expect(parsed.isRecognized, message)
         }
     }
 
@@ -69,8 +73,10 @@ struct ADIEnumerationTests {
             let value = member.description
             let message: Comment = "\(fixture.name): \(value)"
 
-            #expect(fixture.type.init(rawValue: value.lowercased())?.description == value, message)
-            #expect(fixture.type.init(rawValue: value.uppercased())?.description == value, message)
+            #expect(fixture.type.init(rawValue: value.lowercased()).isRecognized, message)
+            #expect(fixture.type.init(rawValue: value.lowercased()).description == value, message)
+            #expect(fixture.type.init(rawValue: value.uppercased()).isRecognized, message)
+            #expect(fixture.type.init(rawValue: value.uppercased()).description == value, message)
         }
     }
 
@@ -94,14 +100,16 @@ struct ADIEnumerationTests {
         }
     }
 
-    @Test("Values the specification does not define are rejected",
+    @Test("A value the specification does not define is kept as unrecognized",
           arguments: enumerationFixtures)
-    func unknownValuesAreRejected(fixture: EnumerationFixture) {
-        let message: Comment = "\(fixture.name)"
+    func unknownValuesArePreserved(fixture: EnumerationFixture) {
+        for value in ["", "  ", "ZZ-UNRECOGNIZED"] {
+            let parsed = fixture.type.init(rawValue: value)
+            let message: Comment = "\(fixture.name): \(value)"
 
-        #expect(fixture.type.init(rawValue: "") == nil, message)
-        #expect(fixture.type.init(rawValue: "  ") == nil, message)
-        #expect(fixture.type.init(rawValue: "ZZ-UNRECOGNIZED") == nil, message)
+            #expect(!parsed.isRecognized, message)
+            #expect(parsed.description == value, message)
+        }
     }
 
     @Test("No defined value is reachable by appending to another defined value",
@@ -110,7 +118,7 @@ struct ADIEnumerationTests {
         for member in fixture.type.allMembers {
             let message: Comment = "\(fixture.name): \(member.description)"
 
-            #expect(fixture.type.init(rawValue: member.description + "-x") == nil, message)
+            #expect(!fixture.type.init(rawValue: member.description + "-x").isRecognized, message)
         }
     }
 
@@ -118,14 +126,14 @@ struct ADIEnumerationTests {
     func everyClosedEnumerationIsCoveredByAFixture() {
         let expected = [
             "ADIAntPath", "ADIARRLSection", "ADIAward", "ADIBand", "ADIContestID",
-            "ADIContinent", "ADIEQSL_AG", "ADIMode", "ADIMorseKeyType",
-            "ADIPropagationMode", "ADIQSLMedium", "ADIQSLRcvd", "ADIQSLSent",
-            "ADIQSLVia", "ADIQSOComplete", "ADIQSODownloadStatus",
+            "ADIContinent", "ADICredit", "ADIDXCCEntityCode", "ADIEQSL_AG", "ADIMode",
+            "ADIMorseKeyType", "ADIPropagationMode", "ADIQSLMedium", "ADIQSLRcvd",
+            "ADIQSLSent", "ADIQSLVia", "ADIQSOComplete", "ADIQSODownloadStatus",
             "ADIQSOUploadStatus", "ADISponsoredAward", "ADISubmode",
         ]
 
         #expect(enumerationFixtures.map(\.name) == expected)
-        #expect(enumerationFixtures.reduce(0) { $0 + $1.memberCount } == 951)
+        #expect(enumerationFixtures.reduce(0) { $0 + $1.memberCount } == 1239)
     }
 }
 
@@ -231,10 +239,20 @@ struct ADIEnumerationCanonicalFormTests {
         #expect(!ADIMode.allMembers.contains(mode))
     }
 
-    @Test("Parsing an unrecognized value returns nil rather than a new member")
-    func unrecognizedValuesAreNotParsed() {
-        #expect(ADIMode(rawValue: "FutureMode") == nil)
-        #expect(ADIBand(rawValue: "FutureBand") == nil)
-        #expect(ADIQSOComplete(rawValue: "MAYBE") == nil)
+    @Test("Parsing a value the specification does not define yields the unrecognized case")
+    func parsingUnknownValuesYieldsUnrecognized() {
+        #expect(ADIMode(rawValue: "FutureMode") == .unrecognized("FutureMode"))
+        #expect(ADIBand(rawValue: "FutureBand") == .unrecognized("FutureBand"))
+        #expect(ADIQSOComplete(rawValue: "MAYBE") == .unrecognized("MAYBE"))
+        #expect(ADISubmode(rawValue: "FutureSubMode") == .unrecognized("FutureSubMode"))
+
+        #expect(!ADIMode(rawValue: "FutureMode").isRecognized)
+        #expect(!ADIBand(rawValue: "FutureBand").isRecognized)
+        #expect(!ADIQSOComplete(rawValue: "MAYBE").isRecognized)
+        #expect(!ADISubmode(rawValue: "FutureSubMode").isRecognized)
+        #expect(!ADIMode(rawValue: "FutureMode").isImportOnly)
+        #expect(!ADIBand(rawValue: "FutureBand").isImportOnly)
+        #expect(!ADIQSOComplete(rawValue: "MAYBE").isImportOnly)
+        #expect(!ADISubmode(rawValue: "FutureSubMode").isImportOnly)
     }
 }
