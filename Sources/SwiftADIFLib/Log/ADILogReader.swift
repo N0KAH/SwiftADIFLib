@@ -19,15 +19,21 @@ public struct ADILogReader {
     }
 
     public init(parsing text: String) {
-        let bytes = Array(text.utf8)
+        let original = text
+        let bytes = Array(original.utf8)
 
         var header = ADIHeader()
         var problems: [ADILogProblem] = []
         var records: [ADIRecord] = []
 
-        var rs = ADITagScanner(text)
-        _ = rs.consumeLeadingText()
+        do {
+            header = try ADIHeader(parsing: original)
+        } catch {
+            header = ADIHeader()
+        }
 
+        var rs = ADITagScanner(original)
+        _ = rs.consumeLeadingText()
         while !rs.isAtEnd {
             do {
                 guard let tag = try rs.scanTag() else { break }
@@ -42,7 +48,6 @@ public struct ADILogReader {
         var attempt = 0
         while !rs.isAtEnd {
             let start = rs.position
-            let lineStart = lineNumber(at: start, bytes: bytes)
             var temp = rs
             var foundEOR = false
             while !temp.isAtEnd {
@@ -57,16 +62,25 @@ public struct ADILogReader {
                 }
             }
             let end = foundEOR ? temp.position : bytes.count
-            if start >= end {
-                break
+            if end <= start {
+                rs.skipToNextTag()
+                if rs.isAtEnd { break }
+                continue
             }
-            let slice = substring(from: start, to: end, text: text)
+            let slice = substring(from: start, to: end, text: original)
+            // Skip if slice is just whitespace/newlines
+            let trimmed = slice.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                rs = temp
+                continue
+            }
             do {
                 let record = try ADIRecord(parsing: slice)
                 records.append(record)
                 rs = temp
             } catch let error as ADIFError {
-                let raw = substring(from: start, to: min(start + 4096, bytes.count), text: text)
+                let lineStart = lineNumber(at: start, bytes: bytes)
+                let raw = substring(from: start, to: min(start + 4096, bytes.count), text: original)
                 problems.append(
                     ADILogProblem(
                         byteOffset: start,
@@ -89,13 +103,6 @@ public struct ADILogReader {
                 }
             }
             attempt += 1
-        }
-
-        // Parse header from original text
-        do {
-            header = try ADIHeader(parsing: text)
-        } catch {
-            header = ADIHeader()
         }
 
         self.header = header
