@@ -24,7 +24,7 @@ struct ADIAlaskaCountyTests {
     func codeFormat() {
         // The specification folds the state into the code, so a county's code is
         // not the county name on its own.
-        let county = try? #require(ADIAlaskaCounty(code: "AK,Aleutians East"))
+        let county = ADIAlaskaCounty(code: "AK,Aleutians East")
 
         #expect(county?.name == "Aleutians East")
         #expect(county?.code == "AK,Aleutians East")
