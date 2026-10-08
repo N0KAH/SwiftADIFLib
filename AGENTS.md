@@ -11,12 +11,13 @@ software.
 ## Source layout
 
 Group files by the part of an ADIF file they model. The target root holds only
-cross-cutting machinery; everything else lives in one of two folders.
+cross-cutting machinery; everything else lives in one of three folders.
 
 ```
 Sources/SwiftADIFLib/
 ├── Header/     the header aggregate and its own field types
 ├── Records/    field-level vocabulary, enumerations, and the record model
+├── Log/        log-level reader and problem reporting
 ├── ADIFError.swift
 └── ADITagScanner.swift
 ```
@@ -28,6 +29,8 @@ Sources/SwiftADIFLib/
   `ADIDataSpecifier`, `ADIDataTypeIndicator`, `ADIDate`, `ADITime`,
   `ADIUnknownField`, `ADICalendar`, `ADIEnumeration`, and one file per
   enumeration from section III.B of the specification.
+- `Log/` — log-level types that aggregate header and records from an ADI log,
+  including the reader and problem reporting types.
 - The target root — types used regardless of which part of the file is being
   read: `ADIFError` and `ADITagScanner`.
 
@@ -35,7 +38,8 @@ A file belongs in `Records/` when it models a field, even if `Header/` also uses
 it. `ADIUnknownField`, `ADIDataSpecifier`, and `ADICalendar` are all read by the
 header because a header field is an ADI field; they stay in `Records/`. A type
 belongs at the root only when it is machinery rather than a model of the format
-itself.
+itself. A log-level aggregate (reader, writer, or diagnostic) belongs in `Log/`
+rather than at the root.
 
 Other rules:
 

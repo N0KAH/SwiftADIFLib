@@ -73,6 +73,27 @@ struct ADITagScanner {
         while index < bytes.count, bytes[index] != UInt8(ascii: "<") { index += 1 }
     }
 
+    /// Consumes tags until the next `<EOR>`, discarding the ones in between.
+    ///
+    /// A tag the specification does not describe is not a reason to abandon the
+    /// rest of a log, so this tolerates the same malformed tags ``scanTag()``
+    /// reports and keeps going until the record ends or the input runs out.
+    mutating func skipToEndOfRecord() {
+        while !isAtEnd {
+            do {
+                guard let tag = try scanTag() else {
+                    return
+                }
+
+                if case .endOfRecord = tag {
+                    return
+                }
+            } catch {
+                continue
+            }
+        }
+    }
+
     /// Scans the next tag, skipping any free-form text that precedes it.
     ///
     /// - Returns: The next tag, or `nil` if the end of the input was reached.
