@@ -43,13 +43,13 @@ let record = reader.records.first
 
 ```swift
 var record = ADIRecord()
-record.call = "W5ITR"
+record.call = "N0KAH"
 record.qsoDate = ADIDate(year: 2025, month: 10, day: 8)
 record.timeOn = ADITime(hour: 12, minute: 34)
 record.band = .band40m
 record.mode = .ssb
 
-let adi = try record.serialized() // "<CALL:5>W5ITR <QSO_DATE:8>20251008 <TIME_ON:4>1234 <BAND:3>40m <MODE:3>SSB <EOR>"
+let adi = try record.serialized() // "<CALL:5>N0KAH <QSO_DATE:8>20251008 <TIME_ON:4>1234 <BAND:3>40m <MODE:3>SSB <EOR>"
 ```
 
 ## Documentation
