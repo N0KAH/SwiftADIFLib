@@ -21,6 +21,7 @@ func main() {
         let reader = try ADILogReader(contentsOf: url)
         
         print("Header:")
+        print("  Text: \(reader.header.text)")
         if let version = reader.header.adifVersion {
             print("  ADIF Version: \(version.description)")
         }
